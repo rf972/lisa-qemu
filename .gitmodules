@@ -1,0 +1,4 @@
+[submodule "external/qemu"]
+	path = external/qemu
+	url = https://github.com/rf972/qemu.git
+	branch = aarch64vm_v0
