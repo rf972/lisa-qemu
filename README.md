@@ -23,3 +23,9 @@ License
 ==================
 This project is licensed under Apache-2.0.
 This project includes some third-party code under other open source licenses.
+
+Contributions / Pull Requests
+==================
+Contributions are accepted under Apache-2.0. 
+Only submit contributions where you have authored all of the code. 
+If you do this on work time make sure your employer is cool with this.
