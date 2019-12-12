@@ -2,3 +2,6 @@
 	path = external/qemu
 	url = https://github.com/rf972/qemu.git
 	branch = aarch64vm_v0
+[submodule "external/lisa"]
+	path = external/lisa
+	url = https://github.com/ARM-software/lisa.git
