@@ -18,3 +18,8 @@ build.sh [image name] [config yaml]<p>
 
 To launch the VM:<p>
   The build.sh has a line at the end which details how to launch the vm:
+
+License
+==================
+This project is licensed under Apache-2.0.
+This project includes some third-party code under other open source licenses.
