@@ -4,4 +4,6 @@
 	branch = aarch64vm_v0
 [submodule "external/lisa"]
 	path = external/lisa
-	url = https://github.com/ARM-software/lisa.git
+	url = https://github.com/PeterPuhov-Linaro/lisa.git
+	branch = lisa-qemu
+
