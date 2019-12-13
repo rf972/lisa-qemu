@@ -40,7 +40,7 @@ We have a script (described below), which automates the process of putting a new
 
 To build the kernel we suggest the following steps <br/>
 1) download the kernel from https://github.com/torvalds/linux <br/>
-2) copy one of the config files from lisa-qemu/configs over to your top level kernel .config file. <br/>
+2) copy one of the config files from lisa-qemu/linux-config over to your top level kernel .config file. <br/>
 3) make menuconfig <br/>
 4) make bindeb-pkg -j [number of processors] <br/>
 
@@ -51,10 +51,11 @@ linux-image-5.4.0+_5.4.0+-4_arm64.deb<br/>
 A script is provided to simplify the process of adding a kernel image to the virtual machine. <br/>
 
 At the top level of lisa-qemu, run<br/>
-python3 scripts/install-kernel.py -i [image] -v [kernel version] -p [kernel .deb package]<br/>
+sudo python3 scripts/install-kernel.py -i [image] -v [kernel version] -p [kernel .deb package]<br/>
 
+Note that this script requires sudo in order to be able to mount the image and chroot into the image as part of installing the kernel into your image.<br/>
 Example:<br/>
-python3 -i ../external/qemu/build/ubuntu.aarch64.img -v 5.4.0+ -p linux-image-5.4.0+_5.4.0+-4_arm64.deb    <br/>
+sudo python3 scripts/install-kernel.py -i ./external/qemu/build/ubuntu.aarch64.img -v 5.4.0+ -p linux-image-5.4.0+_5.4.0+-4_arm64.deb    <br/>
     
 ### License
 This project is licensed under Apache-2.0.<br/>
