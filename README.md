@@ -18,7 +18,7 @@ source init_env
 ```
 
 In case the venv becomes unusable for some reason, 
-the `<lisa-install>` shell command available after sourcing init_env
+the `lisa-install` shell command available after sourcing init_env
 will allow to create a new clean venv from scratch.
 
 ### For more information please refer to LISA documentation
