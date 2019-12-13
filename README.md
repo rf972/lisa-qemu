@@ -6,7 +6,6 @@ Integration with QEMU will allow developers to test large veriety of hardware co
 and complex NUMA topologies.
 
 ### Getting Started
-Clone with:<br/>
 ```
 git clone https://github.com/rf972/lisa-qemu.git
 cd lisa-qemu
