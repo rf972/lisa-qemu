@@ -1,12 +1,12 @@
 ### Introduction
-==================
+
 This repo provides an integration which allows LISA to work with QEMU VMs.
 LISA's goal is to help Linux kernel developers to measure the impact of modifications in core parts of the kernel.
 Integration with QEMU will allow developers to test large veriety of hardware configurations including ARM architecture
 and complex NUMA topologies.
 
 ### Getting Started
-==================
+
 Clone with:
 ```
 git clone https://github.com/rf972/lisa-qemu.git
