@@ -24,7 +24,7 @@ https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/setup.htm
 
 ### Building virtual machine
 At top level run<br/>
-scripts/build.sh<br/>
+sh scripts/build-image.sh ubuntu.aarch64 conf/default_config.yml<br/>
 
 Optionally you can provide arguments.<br/>
 build.sh [image name] [config yaml]<br/>
