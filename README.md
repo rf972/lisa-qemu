@@ -7,8 +7,24 @@ and complex NUMA topologies.
 
 Getting Started
 ==================
-To build:
-$ scripts/build.sh
+Clone with:
+git clone https://github.com/rf972/lisa-qemu.git
+cd lisa-qemu
+git submodule update --init --recursive
+cd external/lisa
+sudo ./install_base.sh)
+source init_env
+
+In case the venv becomes unusable for some reason, 
+the lisa-install shell command available after sourcing init_env
+will allow to create a new clean venv from scratch.
+
+# For more information please refer to LISA documentation
+https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/setup.html
+
+# Building virtual machine
+At top level run
+scripts/build.sh
 
 Optionally you can provide arguments.<P>
 build.sh [image name] [config yaml]<p>
