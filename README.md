@@ -35,6 +35,27 @@ build.sh [image name] [config yaml]<br/>
 To launch the VM:<br/>
   The build.sh has a line at the end which details how to launch the vm:<br/>
 
+### Build kernel
+We have a script (described below), which automates the process of putting a new kernel into your image.
+
+To build the kernel we suggest the following steps <br/>
+1) download the kernel from https://github.com/torvalds/linux <br/>
+2) copy one of the config files from lisa-qemu/configs over to your top level kernel .config file. <br/>
+3) make menuconfig <br/>
+4) make bindeb-pkg -j [number of processors] <br/>
+
+The resulting .deb package will be named something like this: <br/>
+linux-image-5.4.0+_5.4.0+-4_arm64.deb<br/>
+
+### Install kernel into virtual machine <br/>
+A script is provided to simplify the process of adding a kernel image to the virtual machine. <br/>
+
+At the top level of lisa-qemu, run<br/>
+python3 scripts/install-kernel.py -i [image] -v [kernel version] -p [kernel .deb package]<br/>
+
+Example:<br/>
+python3 -i ../external/qemu/build/ubuntu.aarch64.img -v 5.4.0+ -p linux-image-5.4.0+_5.4.0+-4_arm64.deb    <br/>
+    
 ### License
 This project is licensed under Apache-2.0.<br/>
 This project includes some third-party code under other open source licenses.<br/>
