@@ -6,9 +6,12 @@
 # This just ensures that the kernel we want to boot
 # is guaranteed to be the one that starts regardless of version.
 #
-# install_kernel.py -v [kernel version]
-#
+# install_kernel.py -i [image] -v [kernel version] -p [kernel .deb package]
+# Where:
+#    [image] is an image built via build-image.sh
 #    [kernel version] is a string like 5.5.0 or 5.5.0.rc1+
+#    [kernel .deb package] is a kernel package built via 
+#                          a kernel make bindeb-pkg
 #
 
 import glob
@@ -95,9 +98,9 @@ class install_kernel:
             self.print("{}: {}".format(arg, getattr(self._args, arg)))
 
     def convert_image(self, type, file_in, file_out):
-        
+        self.print("Converting to image type {} {} -> {}".format(type, file_in, file_out))
         cmd = "qemu-img convert -p -O {} {} {}".format(type, file_in, file_out)
-        self.issue_cmd(cmd)
+        self.issue_cmd(cmd, enable_stdout=False)
         
     def create_loopback(self):
         self.print("create loopback device for {}".format(self._raw_image_path))
@@ -134,9 +137,10 @@ class install_kernel:
         
     def mount_image(self):                
         if not os.path.exists(self.mount_path):
+            self.print("creating {}".format(os.path.abspath(self.mount_path)))
             os.mkdir(self.mount_path)
         self.create_loopback()
-        self.print("mount image to {}".format(self.mount_path))
+        self.print("mount image to {}".format(os.path.abspath(self.mount_path)))
         rc, unused = self.issue_cmd("mount {}p1 {}".format(self.device, self.mount_path))
         self.mount_host_dirs()
         
@@ -145,6 +149,7 @@ class install_kernel:
         self.print("umount image from {}".format(self.mount_path))
         rc, unused = self.issue_cmd("umount {}".format(self.mount_path))
         self.destroy_loopback()
+        os.rmdir(self.mount_path)
         
     def copy_qemu_static(self):
         self.issue_cmd(self.qemu_cpy_cmd)
@@ -155,11 +160,10 @@ class install_kernel:
     #
     def move_old_kernels(self):
         kernel_version = self._args.kernel_ver
-        src_path = "./mnt/boot"
+        src_path = os.path.join(self.mount_path, "boot")
         dest_path = os.path.join(src_path, "backup")
         if not os.path.exists(dest_path):
             os.mkdir(dest_path)
-        #os.chdir(src_path)
         copy_patterns = ['initrd.img*', 'vmlinuz*']
         
         self.print("move old kernels out of the way.")
