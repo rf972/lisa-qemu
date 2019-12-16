@@ -41,11 +41,14 @@ To launch the VM:<br/>
 ### Build kernel
 We have a script (described below), which automates the process of putting a new kernel into your image.
 
-To build the kernel we suggest the following steps <br/>
-1) download the kernel from https://github.com/torvalds/linux <br/>
-2) copy one of the config files from lisa-qemu/linux-config over to your top level kernel .config file. <br/>
-3) make menuconfig <br/>
-4) make bindeb-pkg -j [number of processors] <br/>
+To build the kernel we suggest the following steps.  <br/>
+Note: these steps assume cross compiling for ARM on ubuntu.
+1) Install packages: <br/>
+         On ubuntu: sudo apt-get install gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libssl-dev
+2) download the kernel from https://github.com/torvalds/linux <br/>
+3) copy one of the config files from lisa-qemu/linux-config over to your top level kernel .config file. <br/>
+4) make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- oldconfig <br/>
+5) make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- bindeb-pkg -j [number of processors] <br/>
 
 The resulting .deb package will be named something like this: <br/>
 linux-image-5.4.0+_5.4.0+-4_arm64.deb<br/>
