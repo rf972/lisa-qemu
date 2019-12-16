@@ -23,17 +23,20 @@ will allow to create a new clean venv from scratch.<br/>
 https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/setup.html
 
 ### Building virtual machine
+First, edit the conf/conf_default.yml or create your own.  You will need to at least <br/>
+point the script at the ssh keys.  See ssh_key and ssh_pub_key values in this file. <br/>
 At top level run<br/>
-sh scripts/build-image.sh ubuntu.aarch64 conf/default_config.yml<br/>
+python3 scripts/build-image.py --image ubuntu.aarch64 --config conf/conf_default.yml<br/>
 
 Optionally you can provide arguments.<br/>
-build.sh [image name] [config yaml]<br/>
+build-image.py --image [image name] --config [config yaml]<br/>
     Where:<br/>
       [image name] is one of the scripts from /external/qemu/tests/vm, such as ubuntu.aarch64.<br/>
       [config yaml] Is the configuration file.  See /conf for examples.<br/>
 
 To launch the VM:<br/>
-  The build.sh has a line at the end which details how to launch the vm:<br/>
+  The build-image.py has a --launch parameter which launches the VM and opens an SSH connection to it.<br/>
+  Example: python3 scripts/build-image.py --launch --image ubuntu.aarch64 --config conf/conf_default.yml<br/> 
 
 ### Build kernel
 We have a script (described below), which automates the process of putting a new kernel into your image.

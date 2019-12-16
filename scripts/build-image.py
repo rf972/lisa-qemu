@@ -17,10 +17,12 @@ import os
 import subprocess
 from subprocess import Popen,PIPE
 import argparse
+from setuptools._vendor.six import _meth_self
 
 class build_image:
     qemu_build_path = "external/qemu/build"
     build_image_cmd = "env {} python3 -B ../tests/vm/{} --image {} --force --debug --build-image {}"
+    launch_cmd = "env {} python3 -B ../tests/vm/{} --image {} --debug /bin/bash"
     def __init__(self):
         self.parse_args()
         self.script_path = os.path.dirname(os.path.realpath(__file__))
@@ -73,6 +75,8 @@ class build_image:
                             help="enable debug output")
         parser.add_argument("--dry_run", action="store_true",
                             help="for debugging.  Just show commands to issue.")
+        parser.add_argument("--launch", action="store_true",
+                            help="Launch VM and open an ssh shell.")
         parser.add_argument("--image", "-i", default="", required=True,
                             help="Type of image to build from external/qemu/tests/vm.  example: --image ubuntu.aarch64")
         parser.add_argument("--config", "-c", default="", required=True,
@@ -85,32 +89,42 @@ class build_image:
     def configure_qemu(self):
         cmd = "../configure"
         self.issue_cmd(cmd, show_cmd=True)
-        
+
     def setup_dirs(self):
         if not os.path.exists(self.qemu_build_path):
             os.mkdir(self.qemu_build_path)
         os.chdir(self.qemu_build_path)
-        
+
     def build_qemu(self):        
         self.configure_qemu()
         
         cmd = "make -j {}".format(os.cpu_count())        
         self.issue_cmd(cmd, show_cmd=True)
-        
+
     def build_image(self):
         env_vars = "QEMU=./aarch64-softmmu/qemu-system-aarch64 "
         env_vars += "QEMU_CONFIG={} ".format(self.config_path)
         cmd = self.build_image_cmd.format(env_vars, self._args.image, self.image_path, self.image_path)
         self.issue_cmd(cmd, show_cmd=True)
 
+    def launch_vm(self):
+        env_vars = "QEMU=./aarch64-softmmu/qemu-system-aarch64 "
+        env_vars += "QEMU_CONFIG={} ".format(self.config_path)
+        cmd = self.launch_cmd.format(env_vars, self._args.image, self.image_path)
+        subprocess.call(cmd, shell=True)
+        
     def run(self):
         self.setup_dirs()
         
-        # We need to build qemu since we will be using it to run the qemu image.
-        self.build_qemu()
+        if not self._args.launch or not os.path.exists(self.image_path):
+            # We need to build qemu since we will be using it to run the qemu image.
+            self.build_qemu()
         
-        # Next we create a qemu image using the image template.
-        self.build_image()
+            # Next we create a qemu image using the image template.
+            self.build_image()
+            
+        if self._args.launch:
+            self.launch_vm()
         
 if __name__ == "__main__":
     inst_obj = build_image()    
