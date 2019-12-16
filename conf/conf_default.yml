@@ -1,0 +1,44 @@
+#
+# Example yaml for use by any of the scripts in tests/vm.
+# Can be provided as an argument --config your_config.yml
+# or as environment variable QEMU_CONFIG
+#
+target-conf:
+
+    # If any of the below are not provided, we will just use the qemu defaults.
+
+    # Login username (has to be sudo enabled)
+    #username: qemu
+
+    # Password is used by root and default login user.
+    password: "qemupass"
+
+    # Provide default ssh keys of current user.
+    # You need to edit the below for your user.
+    ssh_key: /home/user/.ssh/id_rsa
+    ssh_pub_key: /home/user/.ssh/id_rsa.pub
+
+    cpu: max
+    machine: virt,gic_version=3
+    memory: 16G
+    #
+    # This specifies a 16 core, 8 core/socket machine with 4 numa nodes
+    #
+    qemu_args: "-smp cpus=16,sockets=2,cores=8
+                -object memory-backend-ram,size=4G,policy=bind,host-nodes=0,id=ram-node0
+                -object memory-backend-ram,size=4G,policy=bind,host-nodes=0,id=ram-node1
+                -object memory-backend-ram,size=4G,policy=bind,host-nodes=1,id=ram-node2
+                -object memory-backend-ram,size=4G,policy=bind,host-nodes=1,id=ram-node3
+                -numa node,memdev=ram-node0,cpus=0-3,nodeid=0 -numa node,memdev=ram-node1,cpus=4-7,nodeid=1
+                -numa node,memdev=ram-node2,cpus=8-11,nodeid=2 -numa node,memdev=ram-node3,cpus=12-15,nodeid=3
+                -numa dist,src=0,dst=1,val=15 -numa dist,src=2,dst=3,val=15
+                -numa dist,src=0,dst=2,val=20 -numa dist,src=0,dst=3,val=20
+                -numa dist,src=1,dst=2,val=20 -numa dist,src=1,dst=3,val=20"
+    #dns: 1.234.567.89
+    # By default install as little as possible since lisa will
+    # install whatever it needs.  
+    # This also significantly speeds up the image generation.
+    install_cmds: ""
+
+    # Specify the fixed ssh port to be used by lisa.
+    ssh_port: 5555
