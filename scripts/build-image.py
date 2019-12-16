@@ -1,0 +1,117 @@
+#
+# Copyright 2019 Linaro
+#
+# Build script for lisa-qemu.
+#
+# build-image.py --image [qemu image] --config [config yaml]
+#
+#    [qemu image] is a name of a qemu image.
+#                 Available options are those under lisa-qemu/external/qemu/tests/vm 
+#                 such as ubuntu.aarch64
+#    [config yaml] is a yaml file with format similar to those 
+#                  under lisa-qemu/conf
+#
+
+import sys
+import os
+import subprocess
+from subprocess import Popen,PIPE
+import argparse
+
+class build_image:
+    qemu_build_path = "external/qemu/build"
+    build_image_cmd = "env {} python3 -B ../tests/vm/{} --image {} --force --debug --build-image {}"
+    def __init__(self):
+        self.parse_args()
+        self.script_path = os.path.dirname(os.path.realpath(__file__))
+        self.root_path = os.path.realpath(os.path.join(self.script_path, "../"))
+        self.qemu_build_path = os.path.realpath(os.path.join(self.root_path, self.qemu_build_path))
+        self.image_name = "{}.img".format(self._args.image)
+        self.image_path = os.path.join(self.qemu_build_path, self.image_name)
+        self.config_path = os.path.realpath(self._args.config)
+        print(self.qemu_build_path)
+        self.continue_on_error = self._args.debug
+        
+    def print(self, trace):
+        print("{}: {}".format(sys.argv[0], trace))
+            
+    def terminate(self, err):
+        if not self.continue_on_error:
+            exit(err)
+            
+    def issue_cmd(self, cmd, show_cmd=False, fail_on_err=True, err_msg=None, enable_stdout=True):
+        rc, output = self.run_command(cmd, show_cmd, enable_stdout=enable_stdout)
+        if fail_on_err and rc != 0:
+            self.print("cmd failed with status: {} cmd: {}".format(rc, cmd))
+            if (err_msg):
+                self.print(err_msg)
+            self.terminate(1)
+        return rc, output
+    
+    def run_command(self, command, show_cmd=False, enable_stdout=True):
+        if show_cmd or self._args.debug:
+            print("{}: {}".format(sys.argv[0], command))
+        if self._args.dry_run:
+            return 0, ""
+        output_lines = []
+        process = subprocess.Popen(command.split(), stdout=subprocess.PIPE) #shlex.split(command)
+        while True:
+            output = process.stdout.readline()
+            if (not output or output == '') and process.poll() is not None:
+                break
+            if output and enable_stdout:
+                self.print(str(output, 'utf-8').strip())
+            output_lines.append(str(output, 'utf-8'))
+        rc = process.poll()
+        return rc, output_lines
+    
+    def parse_args(self):
+        parser = argparse.ArgumentParser(description="Build the qemu VM image for use with lisa.",
+                                         epilog="example:\n"\
+                                         "build-image.py -i ubuntu.aarch64 -c conf/config_default.yaml")
+        parser.add_argument("--debug", "-D", action="store_true",
+                            help="enable debug output")
+        parser.add_argument("--dry_run", action="store_true",
+                            help="for debugging.  Just show commands to issue.")
+        parser.add_argument("--image", "-i", default="", required=True,
+                            help="Type of image to build from external/qemu/tests/vm.  example: --image ubuntu.aarch64")
+        parser.add_argument("--config", "-c", default="", required=True,
+                            help="config file, example: --config conf/config_default.yml")
+        self._args = parser.parse_args()
+        
+        for arg in ['image', 'config']:
+            self.print("{}: {}".format(arg, getattr(self._args, arg)))
+
+    def configure_qemu(self):
+        cmd = "../configure"
+        self.issue_cmd(cmd, show_cmd=True)
+        
+    def setup_dirs(self):
+        if not os.path.exists(self.qemu_build_path):
+            os.mkdir(self.qemu_build_path)
+        os.chdir(self.qemu_build_path)
+        
+    def build_qemu(self):        
+        self.configure_qemu()
+        
+        cmd = "make -j {}".format(os.cpu_count())        
+        self.issue_cmd(cmd, show_cmd=True)
+        
+    def build_image(self):
+        env_vars = "QEMU=./aarch64-softmmu/qemu-system-aarch64 "
+        env_vars += "QEMU_CONFIG={} ".format(self.config_path)
+        cmd = self.build_image_cmd.format(env_vars, self._args.image, self.image_path, self.image_path)
+        self.issue_cmd(cmd, show_cmd=True)
+
+    def run(self):
+        self.setup_dirs()
+        
+        # We need to build qemu since we will be using it to run the qemu image.
+        self.build_qemu()
+        
+        # Next we create a qemu image using the image template.
+        self.build_image()
+        
+if __name__ == "__main__":
+    inst_obj = build_image()    
+    inst_obj.run()
