@@ -17,21 +17,22 @@ import os
 import subprocess
 from subprocess import Popen,PIPE
 import argparse
-from setuptools._vendor.six import _meth_self
 
 class build_image:
     qemu_build_path = "external/qemu/build"
     build_image_cmd = "env {} python3 -B ../tests/vm/{} --image {} --force --debug --build-image {}"
-    launch_cmd = "env {} python3 -B ../tests/vm/{} --image {} --debug /bin/bash"
+    launch_cmd = "env {} python3 -B ../tests/vm/{} --image {} --debug {}"
     def __init__(self):
         self.parse_args()
         self.script_path = os.path.dirname(os.path.realpath(__file__))
         self.root_path = os.path.realpath(os.path.join(self.script_path, "../"))
         self.qemu_build_path = os.path.realpath(os.path.join(self.root_path, self.qemu_build_path))
-        self.image_name = "{}.img".format(self._args.image)
-        self.image_path = os.path.join(self.qemu_build_path, self.image_name)
+        self.image_name = "{}.img".format(self._args.image_type)
+        if self._args.image_path:
+            self.image_path = os.path.realpath(self._args.image_path)
+        else:
+            self.image_path = os.path.join(self.qemu_build_path, self.image_name)
         self.config_path = os.path.realpath(self._args.config)
-        print(self.qemu_build_path)
         self.continue_on_error = self._args.debug
         
     def print(self, trace):
@@ -41,8 +42,8 @@ class build_image:
         if not self.continue_on_error:
             exit(err)
             
-    def issue_cmd(self, cmd, show_cmd=False, fail_on_err=True, err_msg=None, enable_stdout=True):
-        rc, output = self.run_command(cmd, show_cmd, enable_stdout=enable_stdout)
+    def issue_cmd(self, cmd, show_cmd=False, fail_on_err=True, err_msg=None, enable_stdout=True, no_capture=False):
+        rc, output = self.run_command(cmd, show_cmd, enable_stdout=enable_stdout, no_capture=no_capture)
         if fail_on_err and rc != 0:
             self.print("cmd failed with status: {} cmd: {}".format(rc, cmd))
             if (err_msg):
@@ -50,12 +51,16 @@ class build_image:
             self.terminate(1)
         return rc, output
     
-    def run_command(self, command, show_cmd=False, enable_stdout=True):
-        if show_cmd or self._args.debug:
-            print("{}: {}".format(sys.argv[0], command))
-        if self._args.dry_run:
-            return 0, ""
+    def run_command(self, command, show_cmd=False, enable_stdout=True, no_capture=False):
         output_lines = []
+        if show_cmd or self._args.debug:
+            print("{}: {} ".format(sys.argv[0], command))
+        if self._args.dry_run:
+            print("")
+            return 0, output_lines
+        if no_capture:
+            rc = subprocess.call(command, shell=True)
+            return rc, output_lines
         process = subprocess.Popen(command.split(), stdout=subprocess.PIPE) #shlex.split(command)
         while True:
             output = process.stdout.readline()
@@ -75,15 +80,17 @@ class build_image:
                             help="enable debug output")
         parser.add_argument("--dry_run", action="store_true",
                             help="for debugging.  Just show commands to issue.")
-        parser.add_argument("--launch", action="store_true",
+        parser.add_argument("--ssh", action="store_true",
                             help="Launch VM and open an ssh shell.")
-        parser.add_argument("--image", "-i", default="", required=True,
+        parser.add_argument("--image_type", "-i", default="", required=True,
                             help="Type of image to build from external/qemu/tests/vm.  example: --image ubuntu.aarch64")
+        parser.add_argument("--image_path", "-p", default="",
+                            help="Not required, allows overriding path to image.")
         parser.add_argument("--config", "-c", default="", required=True,
                             help="config file, example: --config conf/config_default.yml")
         self._args = parser.parse_args()
         
-        for arg in ['image', 'config']:
+        for arg in ['image_type', 'config']:
             self.print("{}: {}".format(arg, getattr(self._args, arg)))
 
     def configure_qemu(self):
@@ -99,32 +106,32 @@ class build_image:
         self.configure_qemu()
         
         cmd = "make -j {}".format(os.cpu_count())        
-        self.issue_cmd(cmd, show_cmd=True)
+        self.issue_cmd(cmd, no_capture=True)
 
     def build_image(self):
         env_vars = "QEMU=./aarch64-softmmu/qemu-system-aarch64 "
         env_vars += "QEMU_CONFIG={} ".format(self.config_path)
-        cmd = self.build_image_cmd.format(env_vars, self._args.image, self.image_path, self.image_path)
-        self.issue_cmd(cmd, show_cmd=True)
+        cmd = self.build_image_cmd.format(env_vars, self._args.image_type, self.image_path, self.image_path)
+        self.issue_cmd(cmd, no_capture=True)
 
-    def launch_vm(self):
+    def ssh(self):
         env_vars = "QEMU=./aarch64-softmmu/qemu-system-aarch64 "
         env_vars += "QEMU_CONFIG={} ".format(self.config_path)
-        cmd = self.launch_cmd.format(env_vars, self._args.image, self.image_path)
-        subprocess.call(cmd, shell=True)
+        cmd = self.launch_cmd.format(env_vars, self._args.image_type, self.image_path, "/bin/bash")
+        self.issue_cmd(cmd, no_capture=True)
         
     def run(self):
         self.setup_dirs()
         
-        if not self._args.launch or not os.path.exists(self.image_path):
+        if not self._args.ssh or not os.path.exists(self.image_path):
             # We need to build qemu since we will be using it to run the qemu image.
             self.build_qemu()
         
             # Next we create a qemu image using the image template.
             self.build_image()
             
-        if self._args.launch:
-            self.launch_vm()
+        if self._args.ssh:
+            self.ssh()
         
 if __name__ == "__main__":
     inst_obj = build_image()    
