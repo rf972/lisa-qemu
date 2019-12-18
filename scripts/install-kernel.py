@@ -29,10 +29,10 @@ class install_kernel:
     mount_tmp = os.path.join(mount_path, "tmp")
     qemu_static_path = "/usr/bin"
     qemu_static_name = "qemu-aarch64-static" 
-    chroot_cmd = "chroot {} {}".format(mount_path, os.path.join(qemu_static_path, qemu_static_name))
     qemu_cpy_cmd = "cp /usr/bin/qemu-aarch64-static ./mnt/usr/bin"
     kernel_pkg_cpy_cmd = "cp {} /tmp"
     install_kernel_cmd = "sudo /usr/bin/dpkg --force-all -i {}"
+    install_kernel_cmd_chroot = "/usr/bin/dpkg --force-all -i {}"
     host_dir_mounts = ["tmp", "dev","proc","sys"]
     install_pkg_path = os.path.join(mount_path, "install_kernel")
     install_pkg_vm_path = "/install_kernel"
@@ -57,6 +57,9 @@ class install_kernel:
         self._kernel_pkg_path = os.path.abspath(self._args.kernel_pkg)
         self._config_path = os.path.abspath(self._args.config)
         self._install_pkg_vm_path =os.path.join(self.install_pkg_vm_path, self._kernel_pkg_name)
+        self.chroot_cmd = "chroot {} {}".format(self._mount_path, 
+                                                os.path.join(self.qemu_static_path, 
+                                                             self.qemu_static_name))
         self.print("image_path: " + self._image_path)
         self.print("kernel_pkg_name: " + self._kernel_pkg_name)
         
@@ -107,6 +110,8 @@ class install_kernel:
                             help="enable debug output")
         parser.add_argument("--dry_run", action="store_true",
                             help="for debugging.  Just show commands to issue.")
+        parser.add_argument("--vm", action="store_true",
+                            help="Install kernel using a vm instead of a chroot.")
         parser.add_argument("--image", "-i", default="", required=True,
                             help="vm image file name.  Like: -i ../external/qemu/build/ubuntu.aarch64.img")
         parser.add_argument("--kernel_ver", "-v", default="", required=True,
@@ -124,6 +129,8 @@ class install_kernel:
         self.print("Converting to image type {} {} -> {}".format(type, file_in, file_out))
         cmd = "qemu-img convert -p -O {} {} {}".format(type, file_in, file_out)
         self.issue_cmd(cmd, enable_stdout=False)
+
+        os.chmod(file_out, 0o666)
         
     def create_loopback(self):
         self.print("create loopback device for {}".format(self._raw_image_path))
@@ -205,7 +212,7 @@ class install_kernel:
         self.issue_cmd(cmd)
         
         self.print("install kernel image {}".format(self._kernel_pkg_name))        
-        cmd = self.install_kernel_cmd.format(os.path.join(self.host_tmp, self._kernel_pkg_name))
+        cmd = self.install_kernel_cmd_chroot.format(os.path.join(self.host_tmp, self._kernel_pkg_name))
         chroot_cmd = "{} {}".format(self.chroot_cmd, cmd)
         self.issue_cmd(chroot_cmd)
             
@@ -230,14 +237,18 @@ class install_kernel:
         
         self.issue_cmd(cmd, no_capture=True)
         
-    def install_kernel(self):
-        if 0:
-            # install the new kernel.
-            self.install_pkg()
-        else:
-            self.copy_files_to_image()
-            self.umount_image()
-            self.run_cmd_in_vm()
+    def install_kernel_vm(self):
+        self.copy_files_to_image()
+        self.umount_image()
+        self.run_cmd_in_vm()
+        
+    def install_kernel_chroot(self):
+        self.copy_qemu_static()
+        # modify the share to move old kernels out of the way.
+        self.move_old_kernels(kernel_version=self._args.kernel_ver)
+        # install the new kernel.
+        self.install_pkg()
+        self.umount_image()
             
     def remove_temporaries(self):
         self.print("remove temporary files")
@@ -250,17 +261,16 @@ class install_kernel:
             # setup, convert image to raw, mount it.
             self.convert_image('raw', self._image_path, self._raw_image_path)
             self.mount_image()
-            self.copy_qemu_static()
-            
-            # modify the share to move old kernels out of the way.
-            #self.move_old_kernels(kernel_version=self._args.kernel_ver)
-            
-            self.install_kernel()                  
-            
+
+            if self._args.vm:
+                self.install_kernel_vm()
+            else:
+                self.install_kernel_chroot()
             # cleanup and convert image back to qcow2
-            #self.umount_image()
             self.convert_image('qcow2', self._raw_image_path, self._output_image_path)
-            self.remove_temporaries()            
+            self.remove_temporaries()
+            print("Install kernel successful.")
+            print("Image path: {}\n".format(self._output_image_path))
         except Exception as e:
             if self._image_mounted:
                 # Cleanup as needed.
