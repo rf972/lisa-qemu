@@ -113,6 +113,8 @@ class build_image:
         env_vars += "QEMU_CONFIG={} ".format(self.config_path)
         cmd = self.build_image_cmd.format(env_vars, self._args.image_type, self.image_path, self.image_path)
         self.issue_cmd(cmd, no_capture=True)
+        print("Image creation successful.")
+        print("Image path: {}\n".format(self.image_path))
 
     def ssh(self):
         env_vars = "QEMU=./aarch64-softmmu/qemu-system-aarch64 "
