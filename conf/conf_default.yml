@@ -15,8 +15,8 @@ target-conf:
 
     # Provide default ssh keys of current user.
     # You need to edit the below for your user.
-    ssh_key: /home/user/.ssh/id_rsa
-    ssh_pub_key: /home/user/.ssh/id_rsa.pub
+    #ssh_key: /home/user/.ssh/id_rsa
+    #ssh_pub_key: /home/user/.ssh/id_rsa.pub
 
     cpu: max
     machine: virt,gic_version=3
