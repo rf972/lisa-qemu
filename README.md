@@ -31,20 +31,26 @@ apt-get install -y python3-yaml wget qemu-efi-aarch64 qemu-utils genisoimage qem
 ### Building virtual machine
 First, edit the conf/conf_default.yml or create your own.  You will need to at least <br/>
 point the script at the ssh keys.  Edit the locations of keys by changing the ssh_key and ssh_pub_key values in this file.  If you need to generate a key you can use ssh-keygen -t rsa to create a key.<br/>
-At top level run<br/>
+The following command will build the image and use the defaults.<br/>
+At the top level run:<br/>
+```
+python3 scripts/build-image.py
+```
+The above is equivalent to the following, where the default argument values are specified explicitly.
 ```
 python3 scripts/build-image.py --image_type ubuntu.aarch64 --config conf/conf_default.yml
 ```
 <br/>
 build-image.py --image_type [image name] --config [config yaml]<br/>
     Where:<br/>
-      [image name] is one of the scripts from /external/qemu/tests/vm, such as ubuntu.aarch64.<br/>
+      [image type] is one of the scripts from /external/qemu/tests/vm, such as ubuntu.aarch64.<br/>
       [config yaml] Is the configuration file.  See /conf for examples.<br/>
 
 ### Launch the VM
 The build-image.py has a --ssh parameter which launches the VM and opens an SSH connection to it.<br/>
+To launch the VM, using all default arguments:
 ```
-python3 scripts/build-image.py --image_type ubuntu.aarch64 --config conf/conf_default.yml --ssh
+python3 scripts/build-image.py --ssh
 ```
 ### Build kernel
 We have a script, which automates the process of putting a new kernel into your image.
@@ -72,14 +78,19 @@ At the top level of lisa-qemu, run<br/>
 sudo python3 scripts/install-kernel.py -i [image] -v [kernel version] -p [kernel .deb package] -c [config file]<br/>
 
 Note that this script requires sudo in order to be able to mount the image.<br/>
+To install the kernel using defaults, only specify the kernel location.
 ```
-sudo python3 scripts/install-kernel.py -i ./external/qemu/build/ubuntu.aarch64.img -v 5.4.0+ -p linux-image-5.4.0+_5.4.0+-4_arm64.deb -c conf/conf_default.yml
+sudo python3 scripts/install-kernel.py -p linux-image-5.4.0+_5.4.0+-4_arm64.deb -c conf/conf_default.yml
+```
+The above is equivalent to the following, where the default argument values are specified explicitly.
+```
+sudo python3 scripts/install-kernel.py -i ./external/qemu/build/ubuntu.aarch64.img -p linux-image-5.4.0+_5.4.0+-4_arm64.deb -c conf/conf_default.yml
 ```
 
 ### Launch VM with new kernel
 The build-image.py will launch a specific vm image if we use the --ssh and --image_path <br/>
 ```
-python3 scripts/build-image.py --image_type ubuntu.aarch64 --config conf/conf_default.yml --ssh --image_path external/qemu/build/ubuntu.aarch64.img.kernel-5.4.0+
+python3 scripts/build-image.py --ssh --image_path external/qemu/build/ubuntu.aarch64.img.kernel-5.4.0+
 ```
 
 ### License
