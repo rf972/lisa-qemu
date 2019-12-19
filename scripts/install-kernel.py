@@ -22,6 +22,8 @@ import subprocess
 from subprocess import Popen,PIPE
 import argparse
 import traceback
+import re
+
                 
 class install_kernel:
     mount_path = "./mnt"
@@ -52,9 +54,11 @@ class install_kernel:
         self._mount_path = os.path.realpath(os.path.join(self._qemu_path, self.mount_path))
         self._image_path = os.path.abspath(getattr(self._args, 'image'))
         self._raw_image_path = self._image_path + '.raw'
-        self._output_image_path = self._image_path + '.kernel-' + self._args.kernel_ver
+        self.kernel_ver = self._args.kernel_ver
         self._kernel_pkg_name = os.path.basename(self._args.kernel_pkg)
         self._kernel_pkg_path = os.path.abspath(self._args.kernel_pkg)
+        self.get_kernel_version()
+        self._output_image_path = self._image_path + '.kernel-' + self.kernel_ver
         self._config_path = os.path.abspath(self._args.config)
         self._install_pkg_vm_path =os.path.join(self.install_pkg_vm_path, self._kernel_pkg_name)
         self.chroot_cmd = "chroot {} {}".format(self._mount_path, 
@@ -114,7 +118,7 @@ class install_kernel:
                             help="Install kernel using a vm instead of a chroot.")
         parser.add_argument("--image", "-i", default="", required=True,
                             help="vm image file name.  Like: -i ../external/qemu/build/ubuntu.aarch64.img")
-        parser.add_argument("--kernel_ver", "-v", default="", required=True,
+        parser.add_argument("--kernel_ver", "-v", default="",
                             help="Kernel version like: -v 5.4.0+")
         parser.add_argument("--kernel_pkg", "-p", default="", required=True,
                             help="kernel package to use")
@@ -192,7 +196,7 @@ class install_kernel:
     # We move older versions out of the way so that when we
     # do update grub it finds just the relevant version.
     #
-    def move_old_kernels(self, kernel_version, root_path="/"):
+    def move_old_kernels(self, root_path="/"):
         src_path = os.path.join(self._mount_path, "boot")
         dest_path = os.path.join(src_path, "backup")
         if not os.path.exists(dest_path):
@@ -202,11 +206,27 @@ class install_kernel:
         self.print("move old kernels out of the way.")
         for pattern in copy_patterns:
             for file in glob.glob(os.path.join(src_path, pattern)):
-                if (kernel_version not in file):
+                if (self.kernel_ver not in file):
                     self.print("move {} to {}".format(file, dest_path))
                     cmd = "mv {} {}".format(file, dest_path)
                     self.issue_cmd(cmd)
-            
+
+    def get_kernel_version(self):
+        if self.kernel_ver:
+            return
+         #Description: Linux kernel, version 5.4.0+
+        cmd = "dpkg --info {}".format(self._kernel_pkg_path)
+        rc, output = self.issue_cmd(cmd)
+        self.kernel_ver = None
+        for line in output:
+            if "Source: linux-" in line:
+                search = re.search(r'Source: linux-([\d.]+.+)$', line)
+                if search != None and len(search.groups()) > 0:
+                    self.kernel_ver = search.group(1)
+        if self.kernel_ver == None:
+            raise Exception("Unable to determine kernel version, please use --kernel_ver argument.")
+        self.print("Kernel version is: {}".format(self.kernel_ver))
+
     def install_pkg(self):
         cmd = self.kernel_pkg_cpy_cmd.format(self._kernel_pkg_path)
         self.issue_cmd(cmd)
@@ -214,7 +234,7 @@ class install_kernel:
         self.print("install kernel image {}".format(self._kernel_pkg_name))        
         cmd = self.install_kernel_cmd_chroot.format(os.path.join(self.host_tmp, self._kernel_pkg_name))
         chroot_cmd = "{} {}".format(self.chroot_cmd, cmd)
-        self.issue_cmd(chroot_cmd)
+        self.issue_cmd(chroot_cmd, fail_on_err=False)
             
     def copy_files_to_image(self):
         if not os.path.exists(self.install_pkg_path):
@@ -230,7 +250,7 @@ class install_kernel:
         env_vars = "QEMU=./aarch64-softmmu/qemu-system-aarch64 "
         env_vars += "QEMU_CONFIG={} ".format(self._config_path)
         cpy_cmd = "sudo python3 {} {}".format(self.move_kernel_script_path,
-                                              self._args.kernel_ver)
+                                              self.kernel_ver)
         install_cmd = self.install_kernel_cmd.format(self._install_pkg_vm_path)
         cmd = self.launch_cmd.format(env_vars, "ubuntu.aarch64", self._raw_image_path, 
                                      '"{} ; {}"'.format(cpy_cmd, install_cmd))
@@ -245,7 +265,7 @@ class install_kernel:
     def install_kernel_chroot(self):
         self.copy_qemu_static()
         # modify the share to move old kernels out of the way.
-        self.move_old_kernels(kernel_version=self._args.kernel_ver)
+        self.move_old_kernels()
         # install the new kernel.
         self.install_pkg()
         self.umount_image()
@@ -254,14 +274,20 @@ class install_kernel:
         self.print("remove temporary files")
         if os.path.exists(self._raw_image_path):
             os.remove(self._raw_image_path)
-        
-    def run(self):        
-        try:            
+
+    def cleanup(self):
+        if self._image_mounted:
+            # Cleanup as needed.
+            self.umount_image()
+            self.remove_temporaries()    
+
+    def run(self):
+        try:
             os.chdir(self._qemu_path)
             # setup, convert image to raw, mount it.
             self.convert_image('raw', self._image_path, self._raw_image_path)
             self.mount_image()
-
+            input("waiting")
             if self._args.vm:
                 self.install_kernel_vm()
             else:
@@ -272,15 +298,13 @@ class install_kernel:
             print("Install kernel successful.")
             print("Image path: {}\n".format(self._output_image_path))
         except Exception as e:
-            if self._image_mounted:
-                # Cleanup as needed.
-                self.umount_image()
-                self.remove_temporaries()
+            sys.stderr.write("Exception hit\n")
             if isinstance(e, SystemExit) and e.code == 0:
                 return 0
-            sys.stderr.write("Exception hit\n")
             traceback.print_exc()
             return 2
+        finally:
+            self.cleanup()
         
 if __name__ == "__main__":
     inst_obj = install_kernel()    
