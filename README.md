@@ -80,7 +80,7 @@ sudo python3 scripts/install-kernel.py -i [image] -v [kernel version] -p [kernel
 Note that this script requires sudo in order to be able to mount the image.<br/>
 To install the kernel using defaults, only specify the kernel location.
 ```
-sudo python3 scripts/install-kernel.py -p linux-image-5.4.0+_5.4.0+-4_arm64.deb -c conf/conf_default.yml
+sudo python3 scripts/install-kernel.py -p linux-image-5.4.0+_5.4.0+-4_arm64.deb
 ```
 The above is equivalent to the following, where the default argument values are specified explicitly.
 ```
