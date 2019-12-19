@@ -17,15 +17,19 @@ import os
 import subprocess
 from subprocess import Popen,PIPE
 import argparse
+from argparse import RawTextHelpFormatter
 
 class build_image:
     qemu_build_path = "external/qemu/build"
     build_image_cmd = "env {} python3 -B ../tests/vm/{} --image {} --force --debug --build-image {}"
     launch_cmd = "env {} python3 -B ../tests/vm/{} --image {} --debug {}"
+    default_config_file = "conf/conf_default.yml"
     def __init__(self):
-        self.parse_args()
         self.script_path = os.path.dirname(os.path.realpath(__file__))
         self.root_path = os.path.realpath(os.path.join(self.script_path, "../"))
+        self.default_config_path = os.path.realpath(os.path.join(self.root_path, 
+                                                                 self.default_config_file))
+        self.parse_args()
         self.qemu_build_path = os.path.realpath(os.path.join(self.root_path, self.qemu_build_path))
         self.image_name = "{}.img".format(self._args.image_type)
         if self._args.image_path:
@@ -73,21 +77,28 @@ class build_image:
         return rc, output_lines
     
     def parse_args(self):
-        parser = argparse.ArgumentParser(description="Build the qemu VM image for use with lisa.",
-                                         epilog="example:\n"\
-                                         "build-image.py -i ubuntu.aarch64 -c conf/config_default.yaml")
+        parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter,
+                                         description="Build the qemu VM image for use with lisa.",
+                                         epilog="examples:\n"\
+                                         "  To select all defaults: \n"\
+                                         "    build-image.py\n"\
+                                         "  Or select one or more arguments\n"\
+                                         "    build-image.py -i ubuntu.aarch64 -c conf/config_default.yaml")
         parser.add_argument("--debug", "-D", action="store_true",
                             help="enable debug output")
         parser.add_argument("--dry_run", action="store_true",
                             help="for debugging.  Just show commands to issue.")
         parser.add_argument("--ssh", action="store_true",
                             help="Launch VM and open an ssh shell.")
-        parser.add_argument("--image_type", "-i", default="", required=True,
-                            help="Type of image to build from external/qemu/tests/vm.  example: --image ubuntu.aarch64")
+        parser.add_argument("--image_type", "-i", default="ubuntu.aarch64",
+                            help="Type of image to build.\n"\
+                            "From external/qemu/tests/vm.\n"\
+                            "default is ubuntu.aarch64")
         parser.add_argument("--image_path", "-p", default="",
-                            help="Not required, allows overriding path to image.")
-        parser.add_argument("--config", "-c", default="", required=True,
-                            help="config file, example: --config conf/config_default.yml")
+                            help="Allows overriding path to image.")
+        parser.add_argument("--config", "-c", default=self.default_config_path,
+                            help="config file.\n"\
+                            "default is conf/conf_default.yml.")
         self._args = parser.parse_args()
         
         for arg in ['image_type', 'config']:

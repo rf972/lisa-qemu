@@ -21,6 +21,7 @@ import os
 import subprocess
 from subprocess import Popen,PIPE
 import argparse
+from argparse import RawTextHelpFormatter
 import traceback
 import re
 
@@ -41,18 +42,24 @@ class install_kernel:
     move_kernel_script = "move-kernels.py"
     move_kernel_script_path = os.path.join(install_pkg_vm_path, move_kernel_script)    
     launch_cmd = "env {} python3 -B ../tests/vm/{} --image {} --debug {}"
+    default_image_type = "ubuntu.aarch64"
+    default_image_name = "{}.img".format(default_image_type)
+    default_config_file = "conf/conf_default.yml"
     
     def __init__(self):
         self._image_mounted = False
-        self.parse_args()
         
         self.device = None
-        self.continue_on_error = self._args.debug
         self._script_path = os.path.dirname(os.path.realpath(__file__))
         self._root_path = os.path.realpath(os.path.join(self._script_path, "../"))
         self._qemu_path = os.path.realpath(os.path.join(self._root_path, "external/qemu/build"))
         self._mount_path = os.path.realpath(os.path.join(self._qemu_path, self.mount_path))
+        self._default_image_path = os.path.join(self._qemu_path, self.default_image_name)
+        self._default_config_path = os.path.realpath(os.path.join(self._root_path, 
+                                                                  self.default_config_file))
+        self.parse_args()
         self._image_path = os.path.abspath(getattr(self._args, 'image'))
+        self.continue_on_error = self._args.debug
         self._raw_image_path = self._image_path + '.raw'
         self.kernel_ver = self._args.kernel_ver
         self._kernel_pkg_name = os.path.basename(self._args.kernel_pkg)
@@ -105,29 +112,36 @@ class install_kernel:
         return rc, output_lines
     
     def parse_args(self):
-        parser = argparse.ArgumentParser(description="Installs a kernel into an image and " \
-                                         "activates this as the kernel to use on next boot.\n\n",
-                                         epilog="example:\n"\
-                                         "install_kernel.py -i ../external/qemu/build/ubuntu.aarch64.img "\
-                                         "-v 5.4.0+ -p ../../linux/linux-image-5.4.0+_5.4.0+-4_arm64.deb")
+        parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter,
+                                         description="Installs a kernel into an image and " \
+                                         "activates this as the kernel to use on next boot.\n",
+                                         epilog="examples:\n"\
+                                         "   To select all defaults.  Only kernel package is required: \n"\
+                                         "     install_kernel.py -p linux-image-5.4.0+_5.4.0+-4_arm64.deb\n"\
+                                         "   Or provide one or more arguments\n"
+                                         "     install_kernel.py -i ../external/qemu/build/ubuntu.aarch64.img \\\n"\
+                                         "                       -p linux-image-5.4.0+_5.4.0+-4_arm64.deb\n")
         parser.add_argument("--debug", "-D", action="store_true",
                             help="enable debug output")
         parser.add_argument("--dry_run", action="store_true",
                             help="for debugging.  Just show commands to issue.")
         parser.add_argument("--vm", action="store_true",
                             help="Install kernel using a vm instead of a chroot.")
-        parser.add_argument("--image", "-i", default="", required=True,
-                            help="vm image file name.  Like: -i ../external/qemu/build/ubuntu.aarch64.img")
+        parser.add_argument("--image", "-i", default=self._default_image_path,
+                            help="vm image file name.\n"\
+                            "ex. -i ../external/qemu/build/ubuntu.aarch64.img")
         parser.add_argument("--kernel_ver", "-v", default="",
-                            help="Kernel version like: -v 5.4.0+")
+                            help="kernel version like: -v 5.4.0+")
         parser.add_argument("--kernel_pkg", "-p", default="", required=True,
                             help="kernel package to use")
-        parser.add_argument("--config", "-c", default="", required=True,
-                            help="config file, example: --config conf/config_default.yml")
+        parser.add_argument("--config", "-c", default=self._default_config_path,
+                            help="config file. \n"\
+                            "default is conf/conf_default.yml")
         self._args = parser.parse_args()
         
         for arg in ['image', 'kernel_ver', 'kernel_pkg']:
-            self.print("{}: {}".format(arg, getattr(self._args, arg)))
+            if getattr(self._args, arg):
+                self.print("{}: {}".format(arg, getattr(self._args, arg)))
 
     def convert_image(self, type, file_in, file_out):
         self.print("Converting to image type {} {} -> {}".format(type, file_in, file_out))
@@ -287,7 +301,6 @@ class install_kernel:
             # setup, convert image to raw, mount it.
             self.convert_image('raw', self._image_path, self._raw_image_path)
             self.mount_image()
-            input("waiting")
             if self._args.vm:
                 self.install_kernel_vm()
             else:
