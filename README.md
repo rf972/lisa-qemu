@@ -11,15 +11,14 @@ git clone https://github.com/rf972/lisa-qemu.git
 cd lisa-qemu
 git submodule update --init --recursive
 cd external/lisa
-sudo ./install_base.sh)
-source init_env
+sudo ./install_base.sh
 ```
 
 In case the venv becomes unusable for some reason,<br/>
 the `lisa-install` shell command available after sourcing init_env<br/>
 will allow to create a new clean venv from scratch.<br/>
 
-### For more information please refer to LISA documentation
+#### For more information please refer to LISA documentation
 https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/setup.html
 ### Required packages
 The following packages are required on ubuntu.<br/>
@@ -52,6 +51,14 @@ To launch the VM, using all default arguments:
 ```
 python3 scripts/build-image.py --ssh
 ```
+
+### Run LISA test
+```
+# First time it may take some time
+source init_lisa_env
+lisa-test NUMAMultipleTasksPlacement:test_task_remains --conf conf/lisa/qemu_target_default.yml
+```
+
 ### Build kernel
 We have a script, which automates the process of putting a new kernel into your image.
 
