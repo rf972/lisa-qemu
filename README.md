@@ -77,7 +77,7 @@ sudo python3 scripts/install_kernel.py -p linux-image-5.4.0+_5.4.0+-4_arm64.deb
 ### Launch VM with new kernel
 launch_image.py will launch a specific vm image if we use the --image_path option<br/>
 ```
-python3 scripts/launch_image.py --image_path external/qemu/build/ubuntu.aarch64.img.kernel-5.4.0+
+python3 scripts/launch_image.py --image_path ./build/VM-ubuntu.aarch64/ubuntu.aarch64.img.kernel-5.4.0+
 ```
 
 ### License
