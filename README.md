@@ -36,6 +36,8 @@ python3 scripts/launch_image.py
 ```
 cd external/lisa
 sudo ./install_base.sh
+source init_env
+lisa-install
 ```
 In case the venv becomes unusable for some reason,<br/>
 the `lisa-install` shell command available after sourcing init_env<br/>
@@ -47,7 +49,6 @@ https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/setup.htm
 ### Run LISA test
 ```
 # From top level run the following:
-# Note: First time it may take some time
 source init_lisa_env
 lisa-test NUMAMultipleTasksPlacement:test_task_remains --conf conf/lisa/qemu_target_default.yml
 ```
