@@ -46,7 +46,8 @@ https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/setup.htm
 
 ### Run LISA test
 ```
-# First time it may take some time
+# From top level run the following:
+# Note: First time it may take some time
 source init_lisa_env
 lisa-test NUMAMultipleTasksPlacement:test_task_remains --conf conf/lisa/qemu_target_default.yml
 ```
