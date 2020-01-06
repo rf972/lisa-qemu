@@ -3,7 +3,7 @@
 #
 # Build script for lisa-qemu.
 #
-# build-image.py --image [qemu image] --config [config yaml]
+# build_image.py --image [qemu image] --config [config yaml]
 #
 #    [qemu image] is a name of a qemu image.
 #                 Available options are those under lisa-qemu/external/qemu/tests/vm 
@@ -14,33 +14,62 @@
 
 import sys
 import os
+import stat
+import shutil
 import subprocess
 from subprocess import Popen,PIPE
 import argparse
 from argparse import RawTextHelpFormatter
+import yaml
 
 class build_image:
-    qemu_build_path = "external/qemu/build"
-    build_image_cmd = "env {} python3 -B ../tests/vm/{} --image {} --force --debug --build-image {}"
-    launch_cmd = "env {} python3 -B ../tests/vm/{} --image {} --debug {}"
+    qemu_path_rel = "external/qemu"
+    qemu_build_path_rel = "external/qemu/build"
+    build_path_rel = "build"
+    def_key_path_rel = "default-keys"
+    build_image_cmd = "env {} python3 -B ../tests/vm/{} --image {} --force {} --build-image {}"
+    launch_cmd = "env {} python3 -B ../tests/vm/{} --image {} {} {}"
     default_config_file = "conf/conf_default.yml"
-    def __init__(self):
+    qemu_key_path_rel = "tests/keys"
+    key_files = ["id_rsa", "id_rsa.pub"]
+    
+    def __init__(self, ssh=False):
         self.script_path = os.path.dirname(os.path.realpath(__file__))
         self.root_path = os.path.realpath(os.path.join(self.script_path, "../"))
-        self.default_config_path = os.path.realpath(os.path.join(self.root_path, 
-                                                                 self.default_config_file))
+        
+        if 'QEMU_CONFIG' in os.environ:
+            self.default_config_path = os.environ['QEMU_CONFIG']
+        else:
+            self.default_config_path = os.path.realpath(os.path.join(self.root_path, 
+                                                        self.default_config_file))
         self.parse_args()
-        self.qemu_build_path = os.path.realpath(os.path.join(self.root_path, self.qemu_build_path))
+        self.build_path = os.path.realpath(os.path.join(self.root_path, self.build_path_rel))
+        self.qemu_build_path = os.path.realpath(os.path.join(self.root_path, 
+                                                             self.qemu_build_path_rel))
         self.image_name = "{}.img".format(self._args.image_type)
+        self.lisa_name = "VM-" + self._args.image_type
+        self.image_dir_path = os.path.join(self.build_path, self.lisa_name)
+        self.lisa_config_path = os.path.join(self.image_dir_path, "current_vm_config.yml")
         if self._args.image_path:
             self.image_path = os.path.realpath(self._args.image_path)
         else:
-            self.image_path = os.path.join(self.qemu_build_path, self.image_name)
+            self.image_path = os.path.join(self.image_dir_path, self.image_name)
+        self.def_key_path = os.path.join(self.build_path, self.def_key_path_rel)
+        self.qemu_path = os.path.join(self.root_path, self.qemu_path_rel)
+        self.qemu_key_path = os.path.join(self.qemu_path, self.qemu_key_path_rel)
         self.config_path = os.path.realpath(self._args.config)
         self.continue_on_error = self._args.debug
-        
-    def print(self, trace):
-        print("{}: {}".format(sys.argv[0], trace))
+        self.tmp_config_file = os.path.join(self.image_dir_path, "conf.yml")
+        self.src_ssh_key = os.path.join(self.def_key_path, "id_rsa")
+        self.dest_ssh_key = os.path.join(self.image_dir_path, "id_rsa")
+        self.src_ssh_pub_key = os.path.join(self.def_key_path, "id_rsa.pub")
+        self.dest_ssh_pub_key = os.path.join(self.image_dir_path, "id_rsa.pub")
+        self.ssh_port = 0
+        self.start_ssh = (ssh or self._args.ssh)
+            
+    def print(self, trace, debug=False):
+        if not debug or self._args.debug:
+            print("{}: {}".format(sys.argv[0], trace))
             
     def terminate(self, err):
         if not self.continue_on_error:
@@ -81,9 +110,9 @@ class build_image:
                                          description="Build the qemu VM image for use with lisa.",
                                          epilog="examples:\n"\
                                          "  To select all defaults: \n"\
-                                         "    build-image.py\n"\
+                                         "   "+ sys.argv[0] +"\n"\
                                          "  Or select one or more arguments\n"\
-                                         "    build-image.py -i ubuntu.aarch64 -c conf/config_default.yaml")
+                                         "    {} -i ubuntu.aarch64 -c conf/conf_default.yml".format(sys.argv[0]))
         parser.add_argument("--debug", "-D", action="store_true",
                             help="enable debug output")
         parser.add_argument("--dry_run", action="store_true",
@@ -101,17 +130,94 @@ class build_image:
                             "default is conf/conf_default.yml.")
         self._args = parser.parse_args()
         
-        for arg in ['image_type', 'config']:
-            self.print("{}: {}".format(arg, getattr(self._args, arg)))
-
     def configure_qemu(self):
         cmd = "../configure"
         self.issue_cmd(cmd, show_cmd=True)
+        
+    def create_dir(self, dir):
+        if not os.path.exists(dir):
+            self.print("Create {}".format(dir), debug=True)
+            os.mkdir(dir)
 
     def setup_dirs(self):
-        if not os.path.exists(self.qemu_build_path):
-            os.mkdir(self.qemu_build_path)
+        self.create_dir(self.qemu_build_path)
+        self.create_dir(self.build_path)
+        self.create_dir(self.image_dir_path)
         os.chdir(self.qemu_build_path)
+        
+    def create_default_keys(self):
+        self.create_dir(self.def_key_path)
+        for file in self.key_files:
+            src_file = os.path.join(self.qemu_key_path, file)
+            dst_file = os.path.join(self.def_key_path, file)
+            self.print("copy {} -> {}".format(src_file, dst_file), 
+                   debug=True)
+            shutil.copy(src_file, dst_file)
+            os.chmod(dst_file, stat.S_IRUSR | stat.S_IWUSR)
+        
+    def copy_key_files(self):
+        self.print("copy {} -> {}".format(self.src_ssh_key, self.dest_ssh_key), 
+                   debug=True)
+        shutil.copy(self.src_ssh_key, self.dest_ssh_key)
+        self.print("copy {} -> {}".format(self.src_ssh_pub_key, self.dest_ssh_pub_key), 
+                   debug=True)
+        shutil.copy(self.src_ssh_pub_key, self.dest_ssh_pub_key)
+
+    def modify_path(self, path):
+        if not os.path.isabs(path):
+            path = os.path.realpath(os.path.join(self.root_path, path))
+        return path
+
+    def parse_config_file(self):
+        # Create the config file by parsing the input file and
+        # adding any needed defaults.
+        config_file = None
+        if self._args.config:
+            config_file = self._args.config
+        if not os.path.exists(config_file):
+            raise Exception("config file {} does not exist".format(config_file))
+        with open(config_file) as f:
+            yaml_dict = yaml.safe_load(f)
+            
+        if 'target-conf' in yaml_dict:
+            target_dict = yaml_dict['target-conf']            
+            if 'ssh_key' in target_dict:
+                self.src_ssh_key = target_dict['ssh_key']
+                target_dict['ssh_key'] = modify_path(target_dict['ssh_key'])
+                self.dest_ssh_key = target_dict['ssh_key']
+            else:
+                target_dict['ssh_key'] = self.dest_ssh_key
+            if 'ssh_pub_key' in target_dict:
+                self.src_ssh_pub_key = target_dict['ssh_pub_key']
+                target_dict['ssh_pub_key'] = modify_path(target_dict['ssh_pub_key'])
+                self.dest_ssh_pub_key = target_dict['ssh_pub_key']
+            else:
+                target_dict['ssh_pub_key'] = self.dest_ssh_pub_key
+            if 'ssh_port' in target_dict:
+                self.ssh_port = target_dict['ssh_port']
+        else:
+            raise Exception("config file {} format is invalid.".format(config_file))
+        self.yaml_dict = yaml_dict
+
+    def create_config_file(self):
+        # Rewrite the config file.
+        with open(self.tmp_config_file, 'w') as f:
+            yaml_dict = yaml.dump(self.yaml_dict, f)
+            self.print("config file {} written".format(self.tmp_config_file), debug=True)
+
+    def write_current_config(self):
+        # Write down the current config file.  
+        # This will be used by lisa
+        yaml_dict = {'kind'     : "linux",
+                     'name'     : self.lisa_name,
+                     'host'     : "127.0.0.1",
+                     'username' : "root",
+                     'keyfile'  : self.dest_ssh_key,
+                     'port'     : self.ssh_port,
+                     }
+        with open(self.lisa_config_path, 'w') as f:
+            yaml_dict = yaml.dump(yaml_dict, f)
+            self.print("current config {} written".format(self.lisa_config_path))
 
     def build_qemu(self):        
         self.configure_qemu()
@@ -121,29 +227,52 @@ class build_image:
 
     def build_image(self):
         env_vars = "QEMU=./aarch64-softmmu/qemu-system-aarch64 "
-        env_vars += "QEMU_CONFIG={} ".format(self.config_path)
-        cmd = self.build_image_cmd.format(env_vars, self._args.image_type, self.image_path, self.image_path)
-        self.issue_cmd(cmd, no_capture=True)
-        print("Image creation successful.")
-        print("Image path: {}\n".format(self.image_path))
+        env_vars += "QEMU_CONFIG={} ".format(self.tmp_config_file)
+        debug = ""
+        if self._args.debug:
+            debug = "--debug"
+        cmd = self.build_image_cmd.format(env_vars, 
+                                          self._args.image_type, 
+                                          self.image_path, 
+                                          debug,
+                                          self.image_path)
+        rc, output = self.issue_cmd(cmd, no_capture=True)
+        if rc != 0:
+            print("Image creation failed.")
+        else:
+            print("Image creation successful.")
+            print("Image path: {}\n".format(self.image_path))
 
     def ssh(self):
+        print("Conf:        {}".format(self.tmp_config_file))
+        print("Image type:  {}".format(self._args.image_type))
+        print("Image path:  {}\n".format(self.image_path))
         env_vars = "QEMU=./aarch64-softmmu/qemu-system-aarch64 "
-        env_vars += "QEMU_CONFIG={} ".format(self.config_path)
-        cmd = self.launch_cmd.format(env_vars, self._args.image_type, self.image_path, "/bin/bash")
+        env_vars += "QEMU_CONFIG={} ".format(self.tmp_config_file)
+        if self._args.debug:
+            debug = "--debug"
+        else:
+            debug = ""
+        self.write_current_config()
+        cmd = self.launch_cmd.format(env_vars, self._args.image_type, self.image_path, debug, "/bin/bash")
         self.issue_cmd(cmd, no_capture=True)
         
     def run(self):
         self.setup_dirs()
+        self.parse_config_file()
         
-        if not self._args.ssh or not os.path.exists(self.image_path):
+        if not self.start_ssh or not os.path.exists(self.image_path):
+            self.create_default_keys()
+            self.create_config_file()
+            self.copy_key_files()
+            
             # We need to build qemu since we will be using it to run the qemu image.
             self.build_qemu()
         
             # Next we create a qemu image using the image template.
             self.build_image()
             
-        if self._args.ssh:
+        if self.start_ssh:
             self.ssh()
         
 if __name__ == "__main__":

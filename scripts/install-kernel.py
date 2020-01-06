@@ -45,6 +45,7 @@ class install_kernel:
     default_image_type = "ubuntu.aarch64"
     default_image_name = "{}.img".format(default_image_type)
     default_config_file = "conf/conf_default.yml"
+    build_path_rel = "build"
     
     def __init__(self):
         self._image_mounted = False
@@ -54,11 +55,18 @@ class install_kernel:
         self._root_path = os.path.realpath(os.path.join(self._script_path, "../"))
         self._qemu_path = os.path.realpath(os.path.join(self._root_path, "external/qemu/build"))
         self._mount_path = os.path.realpath(os.path.join(self._qemu_path, self.mount_path))
-        self._default_image_path = os.path.join(self._qemu_path, self.default_image_name)
-        self._default_config_path = os.path.realpath(os.path.join(self._root_path, 
-                                                                  self.default_config_file))
+        
+        if 'QEMU_CONFIG' in os.environ:
+            self._default_config_path = os.environ['QEMU_CONFIG']
+        else:
+            self._default_config_path = os.path.realpath(os.path.join(self._root_path, 
+                                                        self.default_config_file))
+        self.build_path = os.path.realpath(os.path.join(self._root_path, self.build_path_rel))
+        self._image_dir_path = os.path.join(self.build_path, "VM-" + "ubuntu.aarch64")
+        self._default_image_path = os.path.join(self._image_dir_path, self.default_image_name)
         self.parse_args()
         self._image_path = os.path.abspath(getattr(self._args, 'image'))
+        self._image_dir_path = os.path.dirname(self._image_path)
         self.continue_on_error = self._args.debug
         self._raw_image_path = self._image_path + '.raw'
         self.kernel_ver = self._args.kernel_ver
