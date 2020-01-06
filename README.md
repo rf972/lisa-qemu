@@ -64,8 +64,8 @@ sudo apt-get install -y libncurses-dev flex bison openssl libssl-dev dkms libelf
 ```
 2) download the kernel from https://github.com/torvalds/linux <br/>
 3) copy one of the config files from lisa-qemu/linux-config over to your top level kernel .config file. <br/>
-4) make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- oldconfig <br/>
-5) make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- bindeb-pkg -j [number of processors] <br/>
+4) make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig <br/>
+5) make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- bindeb-pkg -j [number of jobs] <br/>
 
 The resulting .deb package will be named something like this: <br/>
 linux-image-5.4.0+_5.4.0+-4_arm64.deb<br/>
