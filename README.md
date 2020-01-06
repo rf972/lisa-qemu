@@ -10,16 +10,8 @@ and complex NUMA topologies.
 git clone https://github.com/rf972/lisa-qemu.git
 cd lisa-qemu
 git submodule update --init --recursive
-cd external/lisa
-sudo ./install_base.sh
 ```
 
-In case the venv becomes unusable for some reason,<br/>
-the `lisa-install` shell command available after sourcing init_env<br/>
-will allow to create a new clean venv from scratch.<br/>
-
-#### For more information please refer to LISA documentation
-https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/setup.html
 ### Required packages
 The following packages are required on ubuntu.<br/>
 ```
@@ -39,6 +31,18 @@ To launch the VM, and open an SSH connection to it, using all default arguments:
 ```
 python3 scripts/launch_image.py
 ```
+
+### LISA installation
+```
+cd external/lisa
+sudo ./install_base.sh
+```
+In case the venv becomes unusable for some reason,<br/>
+the `lisa-install` shell command available after sourcing init_env<br/>
+will allow to create a new clean venv from scratch.<br/>
+
+##### For more information please refer to LISA documentation
+https://lisa-linux-integrated-system-analysis.readthedocs.io/en/master/setup.html
 
 ### Run LISA test
 ```
