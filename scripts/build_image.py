@@ -52,7 +52,7 @@ class build_image:
         self.image_name = "{}.img".format(self._args.image_type)
         self.lisa_name = "VM-" + self._args.image_type
         self.image_dir_path = os.path.join(self.build_path, self.lisa_name)
-        self.lisa_config_path = os.path.join(self.image_dir_path, "current_vm_config.yml")
+        self.lisa_config_path = os.path.join(self.build_path, "current_vm_config.yml")
         if self._args.image_path:
             self.image_path = os.path.realpath(self._args.image_path)
         else:
