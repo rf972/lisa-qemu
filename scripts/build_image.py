@@ -239,11 +239,15 @@ class build_image:
             yaml_dict = yaml.dump(yaml_dict, f)
             self.print("current config {} written".format(self.lisa_config_path), debug=True)
 
-    def build_qemu(self):        
+    def build_qemu(self):
+        print("configuring QEMU.   Please be patient, this may take several minutes...")
         self.configure_qemu()
+        print("QEMU configure complete.")
         
+        print("building QEMU.   Please be patient, this may take several minutes...")
         cmd = "make -j {}".format(os.cpu_count())        
         self.issue_cmd(cmd, no_capture=True)
+        print("QEMU build complete")
 
     def build_image(self):
         env_vars = "QEMU=./aarch64-softmmu/qemu-system-aarch64 "
@@ -251,6 +255,9 @@ class build_image:
         debug = ""
         if self._args.debug:
             debug = "--debug"
+        print("\n")
+        print("Image creation starting.  Please be patient, this may take several minutes...")
+        print("To enable more verbose tracing of each step, please use the --debug option.\n")
         cmd = self.build_image_cmd.format(env_vars, 
                                           self._args.image_type, 
                                           self.image_path, 
