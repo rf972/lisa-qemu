@@ -19,13 +19,17 @@ apt-get build-dep -y qemu
 apt-get install -y libfdt-dev flex bison git apt-utils
 apt-get install -y python3-yaml wget qemu-efi-aarch64 qemu-utils genisoimage qemu-user-static
 ```
+### Note on below commands
+```
+Each of the below commands is expected to be issued from the top level of the lisa-qemu repo.
+In most cases please use a separate shell for each command.
+```
 ### Building virtual machine
 The following command will build the image and use the defaults.<br/>
 At the top level run:<br/>
 ```
 python3 scripts/build_image.py
 ```
-
 ### Launch the VM
 To launch the VM, and open an SSH connection to it, using all default arguments:
 ```
