@@ -101,6 +101,16 @@ Host 127.0.0.1
     LogLevel QUIET
 ```
 
+If you create a new image, host key may change and you will get following error:
+``` 
+devlib.exception.TargetStableError: Bad host key: Host key for server '127.0.0.1' does not match
+```
+This can be fixed by running:
+```
+ssh-keyscan -p 5555  127.0.0.1 > ~/.ssh/known_hosts
+```
+
+
 ### License
 This project is licensed under Apache-2.0.<br/>
 This project includes some third-party code under other open source licenses.<br/>
