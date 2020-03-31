@@ -195,8 +195,8 @@ class build_image:
             self.print("parse {}".format(config_file), debug=True)
             yaml_dict = yaml.safe_load(f)
             
-        if 'target-conf' in yaml_dict:
-            target_dict = yaml_dict['target-conf']            
+        if 'qemu-conf' in yaml_dict:
+            target_dict = yaml_dict['qemu-conf']
             if 'ssh_key' in target_dict:
                 target_dict['ssh_key'] = self.modify_path(target_dict['ssh_key'])
                 self.src_ssh_key = target_dict['ssh_key']
