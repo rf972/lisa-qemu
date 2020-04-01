@@ -48,7 +48,7 @@ class InstallKernel(base_cmd.BaseCmd):
     default_image_name = "{}.img".format(default_image_type)
     default_config_file = "conf/conf_default.yml"
     build_path_rel = "build"
-    
+        
     def __init__(self):
         super(InstallKernel, self).__init__()
         self._image_mounted = False
@@ -331,6 +331,9 @@ class InstallKernel(base_cmd.BaseCmd):
             self.remove_temporaries()
             print("Install kernel successful.")
             print("Image path: {}\n".format(self._output_image_path))
+            print("To start this image run this command:")
+            launch_path = os.path.join(self._script_path, "launch_image.py")
+            print("python3 {} -p {}".format(launch_path, self._output_image_path))
         except Exception as e:
             sys.stderr.write("Exception hit\n")
             if isinstance(e, SystemExit) and e.code == 0:
