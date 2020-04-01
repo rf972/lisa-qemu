@@ -24,9 +24,11 @@ import argparse
 from argparse import RawTextHelpFormatter
 import traceback
 import re
+import yaml
+import base_cmd
 
                 
-class install_kernel:
+class InstallKernel(base_cmd.BaseCmd):
     mount_path = "./mnt"
     host_tmp = "/tmp"
     mount_tmp = os.path.join(mount_path, "tmp")
@@ -48,6 +50,7 @@ class install_kernel:
     build_path_rel = "build"
     
     def __init__(self):
+        super(InstallKernel, self).__init__()
         self._image_mounted = False
         
         self.device = None
@@ -55,6 +58,7 @@ class install_kernel:
         self._root_path = os.path.realpath(os.path.join(self._script_path, "../"))
         self._qemu_path = os.path.realpath(os.path.join(self._root_path, "external/qemu/build"))
         self._mount_path = os.path.realpath(os.path.join(self._qemu_path, self.mount_path))
+        self._qemu_img_path = os.path.join(self._qemu_path, 'qemu-img')
         
         if 'QEMU_CONFIG' in os.environ:
             self._default_config_path = os.environ['QEMU_CONFIG']
@@ -65,15 +69,20 @@ class install_kernel:
         self._image_dir_path = os.path.join(self.build_path, "VM-" + "ubuntu.aarch64")
         self._default_image_path = os.path.join(self._image_dir_path, self.default_image_name)
         self.parse_args()
+        self.set_debug(self._args.debug)
+        self.set_dry_run(self._args.dry_run)
         self._image_path = os.path.abspath(getattr(self._args, 'image'))
         self._image_dir_path = os.path.dirname(self._image_path)
+        self.vm_config_path = os.path.join(self._image_dir_path, "conf.yml")
         self.continue_on_error = self._args.debug
         self._raw_image_path = self._image_path + '.raw'
         self.kernel_ver = self._args.kernel_ver
         self._kernel_pkg_name = os.path.basename(self._args.kernel_pkg)
         self._kernel_pkg_path = os.path.abspath(self._args.kernel_pkg)
-        self.get_kernel_version()
-        self._output_image_path = self._image_path + '.kernel-' + self.kernel_ver
+        self.get_kernel_pkg_version(self._kernel_pkg_path)
+        self.kernel_config_path = os.path.join(self._image_dir_path,
+                                               "conf-kernel-{}.yml".format(self.kernel_ver_minor))
+        self._output_image_path = self._image_path + '.kernel-' + self.kernel_ver_minor
         self._config_path = os.path.abspath(self._args.config)
         self._install_pkg_vm_path =os.path.join(self.install_pkg_vm_path, self._kernel_pkg_name)
         self.chroot_cmd = "chroot {} {}".format(self._mount_path, 
@@ -81,43 +90,6 @@ class install_kernel:
                                                              self.qemu_static_name))
         self.print("image_path: " + self._image_path)
         self.print("kernel_pkg_name: " + self._kernel_pkg_name)
-        
-    def print(self, trace):
-        print("{}: {}".format(sys.argv[0], trace))
-            
-    def terminate(self, err):
-        if not self.continue_on_error:
-            exit(err)
-            
-    def issue_cmd(self, cmd, fail_on_err=True, err_msg=None, enable_stdout=True, no_capture=False):
-        rc, output = self.run_command(cmd, enable_stdout=enable_stdout, no_capture=no_capture)
-        if fail_on_err and rc != 0:
-            self.print("cmd failed with status: {} cmd: {}".format(rc, cmd))
-            if (err_msg):
-                self.print(err_msg)
-            self.terminate(1)
-        return rc, output
-    
-    def run_command(self, command, enable_stdout=True, no_capture=False):
-        output_lines = []
-        if self._args.debug:
-            print("{}: {}".format(sys.argv[0], command))
-        if self._args.dry_run:
-            print("")
-            return 0, output_lines
-        if no_capture:
-            rc = subprocess.call(command, shell=True)
-            return rc, output_lines
-        process = subprocess.Popen(command.split(), stdout=subprocess.PIPE) #shlex.split(command)
-        while True:
-            output = process.stdout.readline()
-            if (not output or output == '') and process.poll() is not None:
-                break
-            if output and enable_stdout:
-                self.print(str(output, 'utf-8').strip())
-            output_lines.append(str(output, 'utf-8'))
-        rc = process.poll()
-        return rc, output_lines
     
     def parse_args(self):
         parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter,
@@ -153,7 +125,7 @@ class install_kernel:
 
     def convert_image(self, type, file_in, file_out):
         self.print("Converting to image type {} {} -> {}".format(type, file_in, file_out))
-        cmd = "qemu-img convert -p -O {} {} {}".format(type, file_in, file_out)
+        cmd = "{} convert -p -O {} {} {}".format(self._qemu_img_path, type, file_in, file_out)
         self.issue_cmd(cmd, enable_stdout=False)
 
         os.chmod(file_out, 0o666)
@@ -229,25 +201,10 @@ class install_kernel:
         for pattern in copy_patterns:
             for file in glob.glob(os.path.join(src_path, pattern)):
                 if (self.kernel_ver not in file):
-                    self.print("move {} to {}".format(file, dest_path))
+                    self.print("move {} to {}".format(file, dest_path),
+                               debug=True)
                     cmd = "mv {} {}".format(file, dest_path)
                     self.issue_cmd(cmd)
-
-    def get_kernel_version(self):
-        if self.kernel_ver:
-            return
-         #Description: Linux kernel, version 5.4.0+
-        cmd = "dpkg --info {}".format(self._kernel_pkg_path)
-        rc, output = self.issue_cmd(cmd)
-        self.kernel_ver = None
-        for line in output:
-            if "Source: linux-" in line:
-                search = re.search(r'Source: linux-([\d.]+.+)$', line)
-                if search != None and len(search.groups()) > 0:
-                    self.kernel_ver = search.group(1)
-        if self.kernel_ver == None:
-            raise Exception("Unable to determine kernel version, please use --kernel_ver argument.")
-        self.print("Kernel version is: {}".format(self.kernel_ver))
 
     def install_pkg(self):
         cmd = self.kernel_pkg_cpy_cmd.format(self._kernel_pkg_path)
@@ -257,7 +214,7 @@ class install_kernel:
         cmd = self.install_kernel_cmd_chroot.format(os.path.join(self.host_tmp, self._kernel_pkg_name))
         chroot_cmd = "{} {}".format(self.chroot_cmd, cmd)
         self.issue_cmd(chroot_cmd, fail_on_err=False)
-            
+
     def copy_files_to_image(self):
         if not os.path.exists(self.install_pkg_path):
             os.mkdir(self.install_pkg_path)
@@ -267,7 +224,57 @@ class install_kernel:
         move_script_path = os.path.join(move_script_path, self.move_kernel_script)
         cmd = "cp {} {}".format(move_script_path, self.install_pkg_path)
         self.issue_cmd(cmd)
-        
+
+    def copy_kernel_from_image(self):
+        kernel_src = "vmlinuz-{}".format(self.kernel_ver)
+        kernel_path = os.path.join(self.mount_path, "boot")
+        kernel_src_path = os.path.join(kernel_path, kernel_src)
+        kernel_dest = "vmlinuz-{}".format(self.kernel_ver_minor)
+        kernel_dest_path = os.path.join(self._image_dir_path, kernel_dest)
+        cmd = "cp {} {}".format(kernel_src_path, kernel_dest_path)
+        self.issue_cmd(cmd)
+        initrd_src = "initrd.img-{}".format(self.kernel_ver)
+        initrd_path = os.path.join(self.mount_path, "boot")
+        initrd_src_path = os.path.join(initrd_path, initrd_src)
+        initrd_dest = "initrd.img-{}".format(self.kernel_ver_minor)
+        initrd_dest_path = os.path.join(self._image_dir_path, initrd_dest)
+        cmd = "cp {} {}".format(initrd_src_path, initrd_dest_path)
+        self.issue_cmd(cmd)
+
+    def read_config(self):
+        if not os.path.exists(self.vm_config_path):
+            print("default config file {} does not exist.  Continuing.")
+            return None
+        with open(self.vm_config_path) as f:
+            self.print("parse {}".format(self.vm_config_path))
+            yaml_dict = yaml.safe_load(f)
+        if 'qemu-conf' in yaml_dict:
+            return yaml_dict
+        else:
+            return None
+
+    def get_qemu_args_for_kernel(self, existing_args):
+        vmlinuz_path = os.path.join(self._image_dir_path,
+                                    "vmlinuz-{}".format(self.kernel_ver_minor))
+        initrd_path = os.path.join(self._image_dir_path,
+                                   "initrd.img-{}".format(self.kernel_ver_minor))
+        args = "-kernel {} --initrd {}".format(vmlinuz_path, initrd_path)
+        args += ' -append "root=/dev/vda1 nokaslr console=ttyAMA0"'
+        return existing_args + " " + args
+
+    def create_config_file(self):
+        # Rewrite the config file.
+        yaml_dict = self.read_config()
+        if yaml_dict == None:
+            return;
+        if 'qemu_args' not in yaml_dict['qemu-conf']:
+            raise Exception("qemu_args not found in {}".format(self.vm_config_path))
+        new_args = self.get_qemu_args_for_kernel(yaml_dict['qemu-conf']['qemu_args'])
+        yaml_dict['qemu-conf']['qemu_args'] = new_args
+        with open(self.kernel_config_path, 'w') as f:
+            yaml_dict = yaml.dump(yaml_dict, f)
+            self.print("config file {} written".format(self.kernel_config_path))
+
     def run_cmd_in_vm(self):
         env_vars = "QEMU=./aarch64-softmmu/qemu-system-aarch64 "
         env_vars += "QEMU_CONFIG={} ".format(self._config_path)
@@ -280,16 +287,22 @@ class install_kernel:
         self.issue_cmd(cmd, no_capture=True)
         
     def install_kernel_vm(self):
+        self.create_config_file()
         self.copy_files_to_image()
         self.umount_image()
         self.run_cmd_in_vm()
+        self.mount_image()
+        self.copy_kernel_from_image()
+        self.umount_image()
         
     def install_kernel_chroot(self):
+        self.create_config_file()
         self.copy_qemu_static()
         # modify the share to move old kernels out of the way.
         self.move_old_kernels()
         # install the new kernel.
         self.install_pkg()
+        self.copy_kernel_from_image()
         self.umount_image()
             
     def remove_temporaries(self):
@@ -328,5 +341,5 @@ class install_kernel:
             self.cleanup()
         
 if __name__ == "__main__":
-    inst_obj = install_kernel()    
+    inst_obj = InstallKernel()    
     inst_obj.run()
