@@ -25,9 +25,10 @@ from argparse import RawTextHelpFormatter
 import traceback
 import re
 import yaml
+import base_cmd
 
                 
-class install_kernel:
+class InstallKernel(base_cmd.BaseCmd):
     mount_path = "./mnt"
     host_tmp = "/tmp"
     mount_tmp = os.path.join(mount_path, "tmp")
@@ -49,6 +50,7 @@ class install_kernel:
     build_path_rel = "build"
     
     def __init__(self):
+        super(InstallKernel, self).__init__()
         self._image_mounted = False
         
         self.device = None
@@ -67,6 +69,8 @@ class install_kernel:
         self._image_dir_path = os.path.join(self.build_path, "VM-" + "ubuntu.aarch64")
         self._default_image_path = os.path.join(self._image_dir_path, self.default_image_name)
         self.parse_args()
+        self.set_debug(self._args.debug)
+        self.set_dry_run(self._args.dry_run)
         self._image_path = os.path.abspath(getattr(self._args, 'image'))
         self._image_dir_path = os.path.dirname(self._image_path)
         self.vm_config_path = os.path.join(self._image_dir_path, "conf.yml")
@@ -75,10 +79,10 @@ class install_kernel:
         self.kernel_ver = self._args.kernel_ver
         self._kernel_pkg_name = os.path.basename(self._args.kernel_pkg)
         self._kernel_pkg_path = os.path.abspath(self._args.kernel_pkg)
-        self.get_kernel_version()
+        self.get_kernel_pkg_version(self._kernel_pkg_path)
         self.kernel_config_path = os.path.join(self._image_dir_path,
-                                               "conf-{}.yml".format(self.kernel_ver_minor))
-        self._output_image_path = self._image_path + '.kernel-' + self.kernel_ver
+                                               "conf-kernel-{}.yml".format(self.kernel_ver_minor))
+        self._output_image_path = self._image_path + '.kernel-' + self.kernel_ver_minor
         self._config_path = os.path.abspath(self._args.config)
         self._install_pkg_vm_path =os.path.join(self.install_pkg_vm_path, self._kernel_pkg_name)
         self.chroot_cmd = "chroot {} {}".format(self._mount_path, 
@@ -86,43 +90,6 @@ class install_kernel:
                                                              self.qemu_static_name))
         self.print("image_path: " + self._image_path)
         self.print("kernel_pkg_name: " + self._kernel_pkg_name)
-        
-    def print(self, trace):
-        print("{}: {}".format(sys.argv[0], trace))
-            
-    def terminate(self, err):
-        if not self.continue_on_error:
-            exit(err)
-            
-    def issue_cmd(self, cmd, fail_on_err=True, err_msg=None, enable_stdout=True, no_capture=False):
-        rc, output = self.run_command(cmd, enable_stdout=enable_stdout, no_capture=no_capture)
-        if fail_on_err and rc != 0:
-            self.print("cmd failed with status: {} cmd: {}".format(rc, cmd))
-            if (err_msg):
-                self.print(err_msg)
-            self.terminate(1)
-        return rc, output
-    
-    def run_command(self, command, enable_stdout=True, no_capture=False):
-        output_lines = []
-        if self._args.debug:
-            print("{}: {}".format(sys.argv[0], command))
-        if self._args.dry_run:
-            print("")
-            return 0, output_lines
-        if no_capture:
-            rc = subprocess.call(command, shell=True)
-            return rc, output_lines
-        process = subprocess.Popen(command.split(), stdout=subprocess.PIPE) #shlex.split(command)
-        while True:
-            output = process.stdout.readline()
-            if (not output or output == '') and process.poll() is not None:
-                break
-            if output and enable_stdout:
-                self.print(str(output, 'utf-8').strip())
-            output_lines.append(str(output, 'utf-8'))
-        rc = process.poll()
-        return rc, output_lines
     
     def parse_args(self):
         parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter,
@@ -234,27 +201,10 @@ class install_kernel:
         for pattern in copy_patterns:
             for file in glob.glob(os.path.join(src_path, pattern)):
                 if (self.kernel_ver not in file):
-                    self.print("move {} to {}".format(file, dest_path))
+                    self.print("move {} to {}".format(file, dest_path),
+                               debug=True)
                     cmd = "mv {} {}".format(file, dest_path)
                     self.issue_cmd(cmd)
-
-    def get_kernel_version(self):
-        if self.kernel_ver:
-            return
-         #Description: Linux kernel, version 5.4.0+
-        cmd = "dpkg --info {}".format(self._kernel_pkg_path)
-        rc, output = self.issue_cmd(cmd)
-        self.kernel_ver = None
-        self.kernel_ver_minor = None
-        for line in output:
-            if "Version: " in line:
-                entries = line.split(" ")
-                if len(entries) > 2:
-                    self.kernel_ver_minor = entries[2].rstrip()
-                    self.kernel_ver = entries[2].split("-")[0].rstrip()
-        if self.kernel_ver == None:
-            raise Exception("Unable to determine kernel version, please use --kernel_ver argument.")
-        self.print("Kernel version is: {} ({})".format(self.kernel_ver, self.kernel_ver_minor))
 
     def install_pkg(self):
         cmd = self.kernel_pkg_cpy_cmd.format(self._kernel_pkg_path)
@@ -296,7 +246,7 @@ class install_kernel:
             print("default config file {} does not exist.  Continuing.")
             return None
         with open(self.vm_config_path) as f:
-            print("parse {}".format(self.vm_config_path))
+            self.print("parse {}".format(self.vm_config_path))
             yaml_dict = yaml.safe_load(f)
         if 'qemu-conf' in yaml_dict:
             return yaml_dict
@@ -310,7 +260,6 @@ class install_kernel:
                                    "initrd.img-{}".format(self.kernel_ver_minor))
         args = "-kernel {} --initrd {}".format(vmlinuz_path, initrd_path)
         args += ' -append "root=/dev/vda1 nokaslr console=ttyAMA0"'
-        print(args)
         return existing_args + " " + args
 
     def create_config_file(self):
@@ -324,7 +273,7 @@ class install_kernel:
         yaml_dict['qemu-conf']['qemu_args'] = new_args
         with open(self.kernel_config_path, 'w') as f:
             yaml_dict = yaml.dump(yaml_dict, f)
-            print("config file {} written".format(self.kernel_config_path))
+            self.print("config file {} written".format(self.kernel_config_path))
 
     def run_cmd_in_vm(self):
         env_vars = "QEMU=./aarch64-softmmu/qemu-system-aarch64 "
@@ -392,5 +341,5 @@ class install_kernel:
             self.cleanup()
         
 if __name__ == "__main__":
-    inst_obj = install_kernel()    
+    inst_obj = InstallKernel()    
     inst_obj.run()

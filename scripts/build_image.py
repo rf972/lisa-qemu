@@ -21,8 +21,9 @@ from subprocess import Popen,PIPE
 import argparse
 from argparse import RawTextHelpFormatter
 import yaml
+import base_cmd
 
-class build_image:
+class BuildImage(base_cmd.BaseCmd):
     qemu_path_rel = "external/qemu"
     qemu_build_path_rel = "external/qemu/build"
     build_path_rel = "build"
@@ -34,6 +35,7 @@ class build_image:
     key_files = ["id_rsa", "id_rsa.pub"]
     
     def __init__(self, ssh=False):
+        super(BuildImage, self).__init__()
         self.script_path = os.path.dirname(os.path.realpath(__file__))
         self.root_path = os.path.realpath(os.path.join(self.script_path, "../"))
         self.orig_default_config_path = os.path.realpath(os.path.join(self.root_path, 
@@ -46,6 +48,8 @@ class build_image:
         else:
             self.default_config_path = self.orig_default_config_path
         self.parse_args()
+        self.set_debug(self._args.debug)
+        self.set_dry_run(self._args.dry_run)
         self.build_path = os.path.realpath(os.path.join(self.root_path, self.build_path_rel))
         self.qemu_build_path = os.path.realpath(os.path.join(self.root_path, 
                                                              self.qemu_build_path_rel))
@@ -64,6 +68,16 @@ class build_image:
         self.print("config file: {}".format(self.config_path), debug=True)
         self.continue_on_error = self._args.debug
         self.vm_config_path = os.path.join(self.image_dir_path, "conf.yml")
+        image_name = os.path.basename(self.image_path)
+        if ".kernel-" in image_name:
+            self.get_kernel_img_version(image_name)
+            kernel_config_file = os.path.join(self.image_dir_path, 
+                         "conf-kernel-{}.yml".format(self.kernel_ver_minor))
+            if os.path.exists(kernel_config_file):
+                self.print("using kernel config: {}".format(kernel_config_file),
+                           debug=True)
+                self.vm_config_path = kernel_config_file
+                
         self.src_ssh_key = os.path.join(self.def_key_path, "id_rsa")
         self.dest_ssh_key = os.path.join(self.image_dir_path, "id_rsa")
         self.src_ssh_pub_key = os.path.join(self.def_key_path, "id_rsa.pub")
@@ -81,45 +95,6 @@ class build_image:
         if self.start_ssh and not self.building_image and \
            self._args.config != self.orig_default_config_path:
             self.vm_config_path = self._args.config
-            
-            
-    def print(self, trace, debug=False):
-        if not debug or self._args.debug:
-            print("{}: {}".format(sys.argv[0], trace))
-            
-    def terminate(self, err):
-        if not self.continue_on_error:
-            exit(err)
-            
-    def issue_cmd(self, cmd, show_cmd=False, fail_on_err=True, err_msg=None, enable_stdout=True, no_capture=False):
-        rc, output = self.run_command(cmd, show_cmd, enable_stdout=enable_stdout, no_capture=no_capture)
-        if fail_on_err and rc != 0:
-            self.print("cmd failed with status: {} cmd: {}".format(rc, cmd))
-            if (err_msg):
-                self.print(err_msg)
-            self.terminate(1)
-        return rc, output
-    
-    def run_command(self, command, show_cmd=False, enable_stdout=True, no_capture=False):
-        output_lines = []
-        if show_cmd or self._args.debug:
-            print("{}: {} ".format(sys.argv[0], command))
-        if self._args.dry_run:
-            print("")
-            return 0, output_lines
-        if no_capture:
-            rc = subprocess.call(command, shell=True)
-            return rc, output_lines
-        process = subprocess.Popen(command.split(), stdout=subprocess.PIPE) #shlex.split(command)
-        while True:
-            output = process.stdout.readline()
-            if (not output or output == '') and process.poll() is not None:
-                break
-            if output and enable_stdout:
-                self.print(str(output, 'utf-8').strip())
-            output_lines.append(str(output, 'utf-8'))
-        rc = process.poll()
-        return rc, output_lines
     
     def parse_args(self):
         parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter,
@@ -280,6 +255,8 @@ class build_image:
             debug = "--debug"
         else:
             debug = ""
+        print("Launching Image.  Please be patient, this may take several minutes...")
+        print("To enable more verbose tracing of each step, please use the --debug option.\n")
         cmd = self.launch_cmd.format(env_vars, self._args.image_type, self.image_path, debug, "/bin/bash")
         self.issue_cmd(cmd, no_capture=True)
         
@@ -308,5 +285,5 @@ class build_image:
             self.ssh()
         
 if __name__ == "__main__":
-    inst_obj = build_image()    
+    inst_obj = BuildImage()    
     inst_obj.run()

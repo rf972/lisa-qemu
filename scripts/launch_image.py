@@ -6,5 +6,5 @@
 import build_image
 
 if __name__ == "__main__":
-    inst_obj = build_image.build_image(ssh=True)    
+    inst_obj = build_image.BuildImage(ssh=True)    
     inst_obj.run()
