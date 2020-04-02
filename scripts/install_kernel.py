@@ -48,7 +48,7 @@ class InstallKernel(base_cmd.BaseCmd):
     default_image_name = "{}.img".format(default_image_type)
     default_config_file = "conf/conf_default.yml"
     build_path_rel = "build"
-    
+        
     def __init__(self):
         super(InstallKernel, self).__init__()
         self._image_mounted = False
@@ -162,15 +162,16 @@ class InstallKernel(base_cmd.BaseCmd):
         self.print("umount host directories from {}".format(self._mount_path))
         mounts = [{'src': "/" + a, 'dst': os.path.join(self._mount_path, a)} for a in self.host_dir_mounts]
         for mnt in mounts:
-            self.issue_cmd("umount {}".format(mnt['dst']), fail_on_err=False)
+            self.unmount(mnt['dst'])
         
-    def mount_image(self):                
+    def mount_image(self):
         if not os.path.exists(self._mount_path):
             self.print("creating {}".format(os.path.abspath(self._mount_path)))
             os.mkdir(self._mount_path)
-        self.create_loopback()        
+        self.create_loopback()
         # After this point, we have to cleanup before exiting.
         self._image_mounted = True
+        self.temp_pkg_path = os.path.abspath(self.install_pkg_path)
         self.print("mount image to {}".format(os.path.abspath(self._mount_path)))
         rc, unused = self.issue_cmd("mount {}p1 {}".format(self.device, self._mount_path))
         self.mount_host_dirs()
@@ -178,7 +179,7 @@ class InstallKernel(base_cmd.BaseCmd):
     def umount_image(self):
         self.umount_host_dirs()
         self.print("umount image from {}".format(self._mount_path))
-        rc, unused = self.issue_cmd("umount {}".format(self._mount_path), fail_on_err=False)
+        self.unmount(self._mount_path)
         self.destroy_loopback()
         self._image_mounted = False
         os.rmdir(self._mount_path)
@@ -224,6 +225,17 @@ class InstallKernel(base_cmd.BaseCmd):
         move_script_path = os.path.join(move_script_path, self.move_kernel_script)
         cmd = "cp {} {}".format(move_script_path, self.install_pkg_path)
         self.issue_cmd(cmd)
+
+    def remove_temp_files(self):
+        """Remove temp files created by copy_files_to_image"""
+        try:
+            if os.path.exists(self.temp_pkg_path):
+                self.print("cleaning up temp dir: {}".format(self.temp_pkg_path),
+                           debug=True)
+                shutil.rmtree(self.temp_pkg_path, ignore_errors=True)
+        except:
+            self.print("Error cleaning up temp dir: {}".format(self.temp_pkg_path))
+            traceback.print_exc()
 
     def copy_kernel_from_image(self):
         kernel_src = "vmlinuz-{}".format(self.kernel_ver)
@@ -293,6 +305,7 @@ class InstallKernel(base_cmd.BaseCmd):
         self.run_cmd_in_vm()
         self.mount_image()
         self.copy_kernel_from_image()
+        self.remove_temp_files()
         self.umount_image()
         
     def install_kernel_chroot(self):
@@ -303,6 +316,7 @@ class InstallKernel(base_cmd.BaseCmd):
         # install the new kernel.
         self.install_pkg()
         self.copy_kernel_from_image()
+        self.remove_temp_files()
         self.umount_image()
             
     def remove_temporaries(self):
@@ -331,6 +345,9 @@ class InstallKernel(base_cmd.BaseCmd):
             self.remove_temporaries()
             print("Install kernel successful.")
             print("Image path: {}\n".format(self._output_image_path))
+            print("To start this image run this command:")
+            launch_path = os.path.join(self._script_path, "launch_image.py")
+            print("python3 {} -p {}".format(launch_path, self._output_image_path))
         except Exception as e:
             sys.stderr.write("Exception hit\n")
             if isinstance(e, SystemExit) and e.code == 0:
