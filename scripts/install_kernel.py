@@ -162,7 +162,7 @@ class InstallKernel(base_cmd.BaseCmd):
         self.print("umount host directories from {}".format(self._mount_path))
         mounts = [{'src': "/" + a, 'dst': os.path.join(self._mount_path, a)} for a in self.host_dir_mounts]
         for mnt in mounts:
-            self.issue_cmd("umount {}".format(mnt['dst']), fail_on_err=False)
+            self.unmount(mnt['dst'])
         
     def mount_image(self):                
         if not os.path.exists(self._mount_path):
@@ -178,7 +178,7 @@ class InstallKernel(base_cmd.BaseCmd):
     def umount_image(self):
         self.umount_host_dirs()
         self.print("umount image from {}".format(self._mount_path))
-        rc, unused = self.issue_cmd("umount {}".format(self._mount_path), fail_on_err=False)
+        self.unmount(self._mount_path)
         self.destroy_loopback()
         self._image_mounted = False
         os.rmdir(self._mount_path)
