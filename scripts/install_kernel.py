@@ -164,13 +164,14 @@ class InstallKernel(base_cmd.BaseCmd):
         for mnt in mounts:
             self.unmount(mnt['dst'])
         
-    def mount_image(self):                
+    def mount_image(self):
         if not os.path.exists(self._mount_path):
             self.print("creating {}".format(os.path.abspath(self._mount_path)))
             os.mkdir(self._mount_path)
-        self.create_loopback()        
+        self.create_loopback()
         # After this point, we have to cleanup before exiting.
         self._image_mounted = True
+        self.temp_pkg_path = os.path.abspath(self.install_pkg_path)
         self.print("mount image to {}".format(os.path.abspath(self._mount_path)))
         rc, unused = self.issue_cmd("mount {}p1 {}".format(self.device, self._mount_path))
         self.mount_host_dirs()
@@ -224,6 +225,17 @@ class InstallKernel(base_cmd.BaseCmd):
         move_script_path = os.path.join(move_script_path, self.move_kernel_script)
         cmd = "cp {} {}".format(move_script_path, self.install_pkg_path)
         self.issue_cmd(cmd)
+
+    def remove_temp_files(self):
+        """Remove temp files created by copy_files_to_image"""
+        try:
+            if os.path.exists(self.temp_pkg_path):
+                self.print("cleaning up temp dir: {}".format(self.temp_pkg_path),
+                           debug=True)
+                shutil.rmtree(self.temp_pkg_path, ignore_errors=True)
+        except:
+            self.print("Error cleaning up temp dir: {}".format(self.temp_pkg_path))
+            traceback.print_exc()
 
     def copy_kernel_from_image(self):
         kernel_src = "vmlinuz-{}".format(self.kernel_ver)
@@ -293,6 +305,7 @@ class InstallKernel(base_cmd.BaseCmd):
         self.run_cmd_in_vm()
         self.mount_image()
         self.copy_kernel_from_image()
+        self.remove_temp_files()
         self.umount_image()
         
     def install_kernel_chroot(self):
@@ -303,6 +316,7 @@ class InstallKernel(base_cmd.BaseCmd):
         # install the new kernel.
         self.install_pkg()
         self.copy_kernel_from_image()
+        self.remove_temp_files()
         self.umount_image()
             
     def remove_temporaries(self):

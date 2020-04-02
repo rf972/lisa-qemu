@@ -99,10 +99,16 @@ class BaseCmd:
                    " {} ({})".format(self.kernel_ver, self.kernel_ver_minor),debug=True)
 
     def unmount(self, mount):
-        while True:
-            rc, output = self.issue_cmd("umount {}".format(mount),
-                                       fail_on_err=False)
-            if rc == 0:
-                break;
-            else:
-                time.sleep(1)
+        retry_count = 0
+        while retry_count < 30:
+            try:
+                rc, output = self.issue_cmd("umount {}".format(mount),
+                                           fail_on_err=False)
+            except:
+                rc = -1
+                continue
+            finally:
+                if rc == 0:
+                    break;
+                else:
+                    time.sleep(1)
