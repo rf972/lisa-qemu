@@ -47,6 +47,8 @@ class BuildImage(base_cmd.BaseCmd):
                                                                          self.default_config_path))
         else:
             self.default_config_path = self.orig_default_config_path
+        self.qemu_path = os.path.join(self.root_path, self.qemu_path_rel)
+        self.test_vm_path = os.path.join(self.qemu_path, "tests/vm")
         self.parse_args()
         self.set_debug(self._args.debug)
         self.set_dry_run(self._args.dry_run)
@@ -62,7 +64,6 @@ class BuildImage(base_cmd.BaseCmd):
         else:
             self.image_path = os.path.join(self.image_dir_path, self.image_name)
         self.def_key_path = os.path.join(self.build_path, self.def_key_path_rel)
-        self.qemu_path = os.path.join(self.root_path, self.qemu_path_rel)
         self.qemu_key_path = os.path.join(self.qemu_path, self.qemu_key_path_rel)
         self.config_path = os.path.realpath(self._args.config)
         self.print("config file: {}".format(self.config_path), debug=True)
@@ -95,15 +96,34 @@ class BuildImage(base_cmd.BaseCmd):
         if self.start_ssh and not self.building_image and \
            self._args.config != self.orig_default_config_path:
             self.vm_config_path = self._args.config
+
+    def get_image_types(self, per_line = 3, 
+                        separator = "\n                   "):
+        bytes = subprocess.check_output("grep --exclude=Make* "\
+                               "--exclude=aarch64* --exclude=basevm* "\
+                               "-l python3 {}/*".format(self.test_vm_path), shell=True)
+        types = bytes.decode().replace(self.test_vm_path + "/", "")
+        types_list = types.split()
+        types_str = ""
+        index = 0
+        for image in types_list:
+            types_str += image + " "
+            index += 1
+            if index >= per_line:
+                types_str += separator
+                index = 0
+        return types_str
     
     def parse_args(self):
+        image_types = self.get_image_types()
         parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter,
                                          description="Build the qemu VM image for use with lisa.",
                                          epilog="examples:\n"\
                                          "  To select all defaults: \n"\
                                          "   "+ sys.argv[0] +"\n"\
                                          "  Or select one or more arguments\n"\
-                                         "    {} -i ubuntu.aarch64 -c conf/conf_default.yml".format(sys.argv[0]))
+                                         "    {} -i ubuntu.aarch64 -c conf/conf_default.yml\n".format(sys.argv[0]) +
+                                         "\nvalid image types: {}".format(image_types))
         parser.add_argument("--debug", "-D", action="store_true",
                             help="enable debug output")
         parser.add_argument("--dry_run", action="store_true",
@@ -119,8 +139,9 @@ class BuildImage(base_cmd.BaseCmd):
         parser.add_argument("--config", "-c", default=self.default_config_path,
                             help="config file.\n"\
                             "default is conf/conf_default.yml.")
-        parser.add_argument("--skip_qemu_build", action="store_true",
-                            help="For debugging script.\n")
+        parser.add_argument("--build_qemu", action="store_true",
+                            help="Build QEMU. QEMU is built initially and not repeated\n"\
+                                 "unless this argument is selected.")
         self._args = parser.parse_args()
         
     def configure_qemu(self):
@@ -225,18 +246,18 @@ class BuildImage(base_cmd.BaseCmd):
         print("QEMU build complete")
 
     def build_image(self):
-        env_vars = "QEMU=./aarch64-softmmu/qemu-system-aarch64 "
+        args = "--build-path {} ".format(self.qemu_build_path)
+        env_vars = "QEMU_LOCAL=1 "
         env_vars += "QEMU_CONFIG={} ".format(self.vm_config_path)
-        debug = ""
         if self._args.debug:
-            debug = "--debug"
+            args += "--debug"
         print("\n")
         print("Image creation starting.  Please be patient, this may take several minutes...")
         print("To enable more verbose tracing of each step, please use the --debug option.\n")
         cmd = self.build_image_cmd.format(env_vars, 
                                           self._args.image_type, 
                                           self.image_path, 
-                                          debug,
+                                          args,
                                           self.image_path)
         rc, output = self.issue_cmd(cmd, no_capture=True)
         if rc != 0:
@@ -249,15 +270,14 @@ class BuildImage(base_cmd.BaseCmd):
         print("Conf:        {}".format(self.vm_config_path))
         print("Image type:  {}".format(self._args.image_type))
         print("Image path:  {}\n".format(self.image_path))
-        env_vars = "QEMU=./aarch64-softmmu/qemu-system-aarch64 "
+        args = "--build-path {} ".format(self.qemu_build_path)
+        env_vars = "QEMU_LOCAL=1 "
         env_vars += "QEMU_CONFIG={} ".format(self.vm_config_path)
         if self._args.debug:
-            debug = "--debug"
-        else:
-            debug = ""
+            args += "--debug"
         print("Launching Image.  Please be patient, this may take several minutes...")
         print("To enable more verbose tracing of each step, please use the --debug option.\n")
-        cmd = self.launch_cmd.format(env_vars, self._args.image_type, self.image_path, debug, "/bin/bash")
+        cmd = self.launch_cmd.format(env_vars, self._args.image_type, self.image_path, args, "/bin/bash")
         self.issue_cmd(cmd, no_capture=True)
         
     def run(self):
@@ -270,7 +290,7 @@ class BuildImage(base_cmd.BaseCmd):
             self.create_config_file()
             self.copy_key_files()
             
-            if not self._args.skip_qemu_build:
+            if not os.path.exists(self.qemu_build_path) or self._args.build_qemu:
                 # We need to build qemu since we will be using it to run the qemu image.
                 self.build_qemu()
         
