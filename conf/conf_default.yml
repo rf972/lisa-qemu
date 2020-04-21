@@ -19,7 +19,8 @@ qemu-conf:
     #ssh_pub_key: /home/user/.ssh/id_rsa.pub
 
     cpu: max
-    machine: virt,gic-version=max
+    #machine: virt,gic-version=max
+    #machine: pc
     memory: 16G
     #
     # This specifies a 16 core, 8 core/socket machine with 4 numa nodes
