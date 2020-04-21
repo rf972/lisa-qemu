@@ -282,6 +282,7 @@ class BuildImage(base_cmd.BaseCmd):
         self.issue_cmd(cmd, no_capture=True)
         
     def run(self):
+        self.require_build = not os.path.exists(self.qemu_build_path)
         self.setup_dirs()
         
         if not self.start_ssh or not os.path.exists(self.image_path):
@@ -291,7 +292,7 @@ class BuildImage(base_cmd.BaseCmd):
             self.create_config_file()
             self.copy_key_files()
             
-            if not os.path.exists(self.qemu_build_path) or self._args.build_qemu:
+            if self.require_build or self._args.build_qemu:
                 # We need to build qemu since we will be using it to run the qemu image.
                 self.build_qemu()
         
