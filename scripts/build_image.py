@@ -122,21 +122,22 @@ class BuildImage(base_cmd.BaseCmd):
                                          "  To select all defaults: \n"\
                                          "   "+ sys.argv[0] +"\n"\
                                          "  Or select one or more arguments\n"\
-                                         "    {} -i ubuntu.aarch64 -c conf/conf_default.yml\n".format(sys.argv[0]) +
+                                         "    {} --image_type ubuntu.aarch64 "\
+                                         "--config conf/conf_default.yml\n".format(sys.argv[0]) +
                                          "\nvalid image types: {}".format(image_types))
-        parser.add_argument("--debug", "-D", action="store_true",
+        parser.add_argument("--debug", action="store_true",
                             help="enable debug output")
         parser.add_argument("--dry_run", action="store_true",
-                            help="for debugging.  Just show commands to issue.")
+                            help="Just show commands issued by script, do not execute them.")
         parser.add_argument("--ssh", action="store_true",
                             help="Launch VM and open an ssh shell.")
-        parser.add_argument("--image_type", "-i", default="ubuntu.aarch64",
+        parser.add_argument("--image_type", default="ubuntu.aarch64",
                             help="Type of image to build.\n"\
                             "From external/qemu/tests/vm.\n"\
                             "default is ubuntu.aarch64")
-        parser.add_argument("--image_path", "-p", default="",
+        parser.add_argument("--image_path", default="",
                             help="Allows overriding path to image.")
-        parser.add_argument("--config", "-c", default=self.default_config_path,
+        parser.add_argument("--config", default=self.default_config_path,
                             help="config file.\n"\
                             "default is conf/conf_default.yml.")
         parser.add_argument("--build_qemu", action="store_true",
